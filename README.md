@@ -23,8 +23,8 @@
 
 言語については特に制限ないので好きな言語のサーバーを立てての確認で OK
 
-- Node.js（npm）がインストールしてるのであれば `npx serve public`
-- PHP がインストールしてるのであれば `php -S localhost:3000 -t public`
+- Node.js（npm）がインストールしてるのであれば `npx serve docs`
+- PHP がインストールしてるのであれば `php -S localhost:3000 -t docs`
 
 など
 
