@@ -1,0 +1,9 @@
+{
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true,
+  "[markdown]": {
+    "editor.formatOnSave": false
+  },
+  "pasteImage.path": "${currentFileDir}/images/${currentFileNameWithoutExt}",
+  "pasteImage.defaultName": "YYYYMMDD_HHmmss"
+}

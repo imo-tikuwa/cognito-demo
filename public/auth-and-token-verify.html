@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AWS Cognito認証デモ - 認証＆IDトークンの確認</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+    <!--
+      ※ メモ
+      @aws-sdk の URL に ?bundle を付けている理由：
+      esm.sh や skypack 等の CDN は Node.js 向けコードも含まれる
+      ブラウザでそのまま使うと内部で Node.js の fs モジュールを呼ぼうとし以下のようなエラーが出る
+      Uncaught (in promise) Error: [unenv] fs.readFile is not implemented yet!
+      ?bundle を付けることでブラウザ向けにバンドルされたコードが提供され、Node.js 用コードの混入を回避できる
+      参考：https://esm.sh/#bundle
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@aws-sdk/client-cognito-identity-provider": "https://esm.sh/@aws-sdk/client-cognito-identity-provider@3.835.0?bundle",
+          "amazon-cognito-identity-js": "https://esm.sh/amazon-cognito-identity-js@6.3.15?bundle",
+          "jwt-decode": "https://esm.sh/jwt-decode@4.0.0"
+        }
+      }
+    </script>
+  </head>
+  <body
+    class="bg-gradient-to-br from-slate-50 to-slate-200 min-h-screen py-8 px-4"
+  >
+    <div class="max-w-4xl mx-auto space-y-8">
+      <div class="bg-white rounded-xl shadow-lg p-8 text-center">
+        <h1 class="text-3xl font-bold text-gray-800 mb-3">
+          🔐 AWS Cognito認証デモ
+        </h1>
+        <p class="text-gray-600 text-lg leading-relaxed">
+          Cognitoユーザープールを使用した認証フローを検証し、<br />
+          グループのIAMロール設定によるJWTトークンへの影響を確認できます。<br />
+          この画面では認証について USER_PASSWORD_AUTH のフローを使用します
+        </p>
+      </div>
+
+      <div
+        class="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl shadow-lg p-8 border-l-4 border-blue-500"
+      >
+        <h3
+          class="text-xl font-semibold text-gray-800 cursor-pointer select-none flex items-center gap-2 hover:text-blue-600 transition-colors duration-200"
+          onclick="toggleConfig()"
+        >
+          ⚙️ Cognito設定
+          <span
+            id="toggleIcon"
+            class="text-blue-500 transform transition-transform duration-200"
+            >▶</span
+          >
+        </h3>
+        <div id="configInputs" class="mt-6 hidden">
+          <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+            <div class="grid gap-6">
+              <div>
+                <label
+                  for="region"
+                  class="block text-sm font-semibold text-gray-700 mb-2"
+                  >リージョン:</label
+                >
+                <input
+                  type="text"
+                  id="region"
+                  value="ap-northeast-1"
+                  placeholder="ap-northeast-1"
+                  class="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
+                />
+              </div>
+              <div>
+                <label
+                  for="userPoolId"
+                  class="block text-sm font-semibold text-gray-700 mb-2"
+                  >ユーザープールID:</label
+                >
+                <input
+                  type="text"
+                  id="userPoolId"
+                  placeholder="ap-northeast-1_XXXXXXXXX"
+                  class="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
+                />
+              </div>
+              <div>
+                <label
+                  for="clientId"
+                  class="block text-sm font-semibold text-gray-700 mb-2"
+                  >アプリクライアントID:</label
+                >
+                <input
+                  type="text"
+                  id="clientId"
+                  placeholder="クライアントID"
+                  class="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
+                />
+              </div>
+            </div>
+            <button
+              onclick="validateConfig()"
+              class="mt-6 w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 px-6 rounded-lg font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200"
+            >
+              設定を確認
+            </button>
+          </div>
+        </div>
+        <div
+          id="configStatus"
+          class="mt-6 text-amber-800 bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-lg border-l-4 border-amber-400 font-medium"
+        >
+          ⚙️ 設定を入力してください
+        </div>
+      </div>
+
+      <!-- ログインセクション -->
+      <div
+        class="hidden bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl shadow-lg p-8 border-l-4 border-indigo-500 transition-all duration-300"
+        id="loginSection"
+      >
+        <h2
+          class="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2"
+        >
+          📧 ログイン
+        </h2>
+        <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+          <div class="space-y-4">
+            <div>
+              <label
+                for="email"
+                class="block text-sm font-semibold text-gray-700 mb-2"
+              >
+                メールアドレス:
+              </label>
+              <input
+                id="email"
+                type="email"
+                class="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all duration-200"
+                placeholder="user@example.com"
+              />
+            </div>
+            <div>
+              <label
+                for="password"
+                class="block text-sm font-semibold text-gray-700 mb-2"
+              >
+                パスワード:
+              </label>
+              <input
+                id="password"
+                type="password"
+                class="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all duration-200"
+                placeholder="パスワードを入力"
+              />
+            </div>
+            <button
+              onclick="signIn()"
+              id="signInBtn"
+              disabled
+              class="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white py-3 px-6 rounded-lg font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200"
+            >
+              ログイン
+            </button>
+            <div
+              id="errorAlert"
+              class="hidden text-red-700 bg-gradient-to-r from-red-50 to-pink-50 p-4 rounded-lg border-l-4 border-red-400 font-medium"
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 認証後表示セクション -->
+      <div
+        id="loggedInSection"
+        class="hidden bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl shadow-lg p-8 border-l-4 border-emerald-500"
+      >
+        <div
+          class="bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 p-4 rounded-lg mb-6 border-l-4 border-green-400 font-semibold"
+        >
+          ✅ 認証成功
+        </div>
+        <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+          <h3 class="text-lg font-bold text-gray-800 mb-4">
+            IDトークン (デコード済み):
+          </h3>
+          <pre
+            id="idTokenDisplay"
+            class="bg-gray-900 text-gray-100 p-6 rounded-lg overflow-x-auto text-sm font-mono border border-gray-300 shadow-inner"
+          >
+ログイン後にIDトークンが表示されます</pre
+          >
+        </div>
+        <button
+          onclick="signOut()"
+          class="mt-6 w-full bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white py-3 px-6 rounded-lg font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200"
+        >
+          ログアウト
+        </button>
+      </div>
+
+      <!-- 検証ポイント -->
+      <div
+        class="bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl shadow-lg p-8 border-l-4 border-blue-500"
+      >
+        <h3
+          class="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2"
+        >
+          📋 検証ポイント
+        </h3>
+        <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+          <ul class="space-y-4 text-gray-700">
+            <li class="flex items-start gap-3">
+              <span
+                class="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-2"
+              ></span>
+              <div>
+                <strong class="text-blue-600">cognito:roles</strong> -
+                グループにIAMロールが設定されている場合に表示される配列
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <span
+                class="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-2"
+              ></span>
+              <div>
+                <strong class="text-blue-600">cognito:preferred_role</strong> -
+                優先的に使用するIAMロールのARN
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <span
+                class="flex-shrink-0 w-2 h-2 bg-red-500 rounded-full mt-2"
+              ></span>
+              <div>
+                <strong class="text-red-600">問題:</strong>
+                一度設定すると空での更新ができず、削除するにはグループの再作成が必要
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <span
+                class="flex-shrink-0 w-2 h-2 bg-red-500 rounded-full mt-2"
+              ></span>
+              <div>不要な場合でもトークンに永続的に残り続ける</div>
+            </li>
+            <li class="flex items-start gap-3">
+              <span
+                class="flex-shrink-0 w-2 h-2 bg-purple-500 rounded-full mt-2"
+              ></span>
+              <div>
+                JWTトークンのペイロードでユーザーのグループ情報とロール設定を確認可能
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import {
+        CognitoIdentityProviderClient,
+        InitiateAuthCommand,
+        GlobalSignOutCommand,
+      } from "@aws-sdk/client-cognito-identity-provider";
+      import { jwtDecode } from "jwt-decode";
+
+      let cognitoClient = null;
+      let currentUser = null;
+      let config = { region: "", userPoolId: "", clientId: "" };
+
+      window.toggleConfig = () => {
+        const inputs = document.getElementById("configInputs");
+        const icon = document.getElementById("toggleIcon");
+        const isHidden = inputs.classList.toggle("hidden");
+        icon.textContent = "▶";
+        icon.style.transform = isHidden ? "rotate(0deg)" : "rotate(90deg)";
+      };
+
+      window.validateConfig = () => {
+        config.region = document.getElementById("region").value.trim();
+        config.userPoolId = document.getElementById("userPoolId").value.trim();
+        config.clientId = document.getElementById("clientId").value.trim();
+
+        const loginSection = document.getElementById("loginSection");
+        const statusDiv = document.getElementById("configStatus");
+        const signInBtn = document.getElementById("signInBtn");
+
+        if (!config.region || !config.userPoolId || !config.clientId) {
+          statusDiv.innerHTML = `
+            <div class="flex items-center gap-2">
+              <span class="text-red-500">❌</span>
+              <span>必須項目を入力してください</span>
+            </div>
+          `;
+          statusDiv.className =
+            "mt-6 text-red-800 bg-gradient-to-r from-red-50 to-pink-50 p-4 rounded-lg border-l-4 border-red-400 font-medium";
+          loginSection.classList.add("hidden");
+          signInBtn.disabled = true;
+          return;
+        }
+
+        cognitoClient = new CognitoIdentityProviderClient({
+          region: config.region,
+        });
+
+        statusDiv.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="text-green-500">✅</span>
+            <span>設定完了 - ログイン可能です</span>
+          </div>
+        `;
+        statusDiv.className =
+          "mt-6 text-green-800 bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border-l-4 border-green-400 font-medium";
+        loginSection.classList.remove("hidden");
+        signInBtn.disabled = false;
+
+        // 入力欄を閉じる
+        document.getElementById("configInputs").classList.add("hidden");
+        const icon = document.getElementById("toggleIcon");
+        icon.textContent = "▶";
+        icon.style.transform = "rotate(0deg)";
+      };
+
+      window.signIn = async () => {
+        const email = document.getElementById("email").value.trim();
+        const password = document.getElementById("password").value;
+        const alertDiv = document.getElementById("errorAlert");
+
+        if (!email || !password) {
+          alertDiv.innerHTML = `
+            <div class="flex items-center gap-2">
+              <span class="text-red-500">⚠️</span>
+              <span>メールアドレスとパスワードを入力してください</span>
+            </div>
+          `;
+          alertDiv.classList.remove("hidden");
+          return;
+        }
+
+        try {
+          const command = new InitiateAuthCommand({
+            AuthFlow: "USER_PASSWORD_AUTH",
+            ClientId: config.clientId,
+            AuthParameters: { USERNAME: email, PASSWORD: password },
+          });
+
+          const response = await cognitoClient.send(command);
+          currentUser = response.AuthenticationResult;
+
+          document.getElementById("idTokenDisplay").textContent =
+            JSON.stringify(jwtDecode(currentUser.IdToken), null, 2);
+          document.getElementById("loginSection").classList.add("hidden");
+          document.getElementById("loggedInSection").classList.remove("hidden");
+          alertDiv.classList.add("hidden");
+        } catch (e) {
+          alertDiv.innerHTML = `
+            <div class="flex items-center gap-2">
+              <span class="text-red-500">❌</span>
+              <span>認証エラー: ${e.message}</span>
+            </div>
+          `;
+          alertDiv.classList.remove("hidden");
+        }
+      };
+
+      window.signOut = async () => {
+        if (currentUser && cognitoClient) {
+          try {
+            const command = new GlobalSignOutCommand({
+              AccessToken: currentUser.AccessToken,
+            });
+            const response = await cognitoClient.send(command);
+            console.log("signed out:", response);
+          } catch (e) {
+            console.error("sign out error:", e);
+          }
+        }
+        currentUser = null;
+        document.getElementById("loggedInSection").classList.add("hidden");
+        document.getElementById("loginSection").classList.remove("hidden");
+      };
+    </script>
+  </body>
+</html>

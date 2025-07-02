@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AWS Cognito認証デモ</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  </head>
+  <body
+    class="bg-gradient-to-br from-slate-50 to-slate-200 min-h-screen py-8 px-4"
+  >
+    <div class="max-w-2xl mx-auto">
+      <section class="mb-8">
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">ページ一覧</h2>
+        <ul
+          class="bg-white rounded-lg shadow-sm border border-gray-200 divide-y divide-gray-200"
+        >
+          <li>
+            <a
+              href="auth-and-token-verify.html"
+              class="block px-4 py-3 hover:bg-gray-50 transition-colors"
+              >🔐 認証U＆IDトークンの中身を確認（USER_PASSWORD_AUTH
+              認証フローを使用）</a
+            >
+          </li>
+        </ul>
+      </section>
+
+      <section class="mb-8">
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">
+          参考サイト（外部リンク）
+        </h2>
+        <ul
+          class="bg-white rounded-lg shadow-sm border border-gray-200 divide-y divide-gray-200"
+        >
+          <li>
+            <a
+              href="https://docs.aws.amazon.com/ja_jp/cognito/latest/developerguide/authentication.html"
+              class="block px-4 py-3 hover:bg-gray-50 transition-colors"
+              target="_blank"
+              >🌐 Amazon Cognito ユーザープールによる認証 - Amazon Cognito</a
+            >
+            <a
+              href="https://docs.aws.amazon.com/ja_jp/cognito/latest/developerguide/amazon-cognito-user-pools-authentication-flow-methods.html"
+              class="block px-4 py-3 hover:bg-gray-50 transition-colors"
+              target="_blank"
+              >🌐 認証フロー - Amazon Cognito</a
+            >
+          </li>
+        </ul>
+      </section>
+    </div>
+  </body>
+</html>
