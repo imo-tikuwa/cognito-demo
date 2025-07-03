@@ -42,92 +42,8 @@
         </p>
       </div>
 
-      <!-- セッション状態表示 -->
-      <div
-        id="sessionStatus"
-        class="hidden bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl shadow-lg p-6 border-l-4 border-blue-500"
-      >
-        <div class="flex items-center gap-3">
-          <span class="text-blue-500 text-xl">🔄</span>
-          <span class="text-blue-800 font-medium"
-            >セッションから認証状態を復元中...</span
-          >
-        </div>
-      </div>
-
-      <div
-        class="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl shadow-lg p-8 border-l-4 border-blue-500"
-      >
-        <h3
-          class="text-xl font-semibold text-gray-800 cursor-pointer select-none flex items-center gap-2 hover:text-blue-600 transition-colors duration-200"
-          onclick="toggleConfig()"
-        >
-          ⚙️ Cognito設定
-          <span
-            id="toggleIcon"
-            class="text-blue-500 transform transition-transform duration-200"
-            >▶</span
-          >
-        </h3>
-        <div id="configInputs" class="mt-6 hidden">
-          <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-            <div class="grid gap-6">
-              <div>
-                <label
-                  for="region"
-                  class="block text-sm font-semibold text-gray-700 mb-2"
-                  >リージョン:</label
-                >
-                <input
-                  type="text"
-                  id="region"
-                  value="ap-northeast-1"
-                  placeholder="ap-northeast-1"
-                  class="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
-                />
-              </div>
-              <div>
-                <label
-                  for="userPoolId"
-                  class="block text-sm font-semibold text-gray-700 mb-2"
-                  >ユーザープールID:</label
-                >
-                <input
-                  type="text"
-                  id="userPoolId"
-                  placeholder="ap-northeast-1_XXXXXXXXX"
-                  class="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
-                />
-              </div>
-              <div>
-                <label
-                  for="clientId"
-                  class="block text-sm font-semibold text-gray-700 mb-2"
-                  >アプリクライアントID:</label
-                >
-                <input
-                  type="text"
-                  id="clientId"
-                  placeholder="クライアントID"
-                  class="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
-                />
-              </div>
-            </div>
-            <button
-              onclick="validateConfig()"
-              class="mt-6 w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 px-6 rounded-lg font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200"
-            >
-              設定を確認
-            </button>
-          </div>
-        </div>
-        <div
-          id="configStatus"
-          class="mt-6 text-amber-800 bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-lg border-l-4 border-amber-400 font-medium"
-        >
-          ⚙️ 設定を入力してください
-        </div>
-      </div>
+      <!-- Cognito 設定 -->
+      <div id="cognitoConfig"></div>
 
       <!-- ログインセクション -->
       <div
@@ -279,84 +195,36 @@
 
     <script type="module">
       import {
-        CognitoIdentityProviderClient,
         InitiateAuthCommand,
         GlobalSignOutCommand,
       } from "@aws-sdk/client-cognito-identity-provider";
       import { jwtDecode } from "jwt-decode";
+      import {
+        getCognitoClient,
+        getCurrentUser,
+        setCurrentUser,
+        getConfig,
+        SESSION_KEYS,
+        toggleConfig,
+        validateConfig,
+        restoreSession,
+        showLoggedInState,
+        clearSession,
+      } from "./scripts/cognito-config.js";
 
-      let cognitoClient = null;
-      let currentUser = null;
-      let config = { region: "", userPoolId: "", clientId: "" };
+      fetch("components/cognito-config.html")
+        .then((res) => res.text())
+        .then((html) => {
+          document.getElementById("cognitoConfig").innerHTML = html;
+          document
+            .getElementById("toggleConfig")
+            .addEventListener("click", toggleConfig);
+          document
+            .getElementById("validateConfig")
+            .addEventListener("click", validateConfig);
 
-      // セッションストレージのキー
-      const SESSION_KEYS = {
-        AUTH_DATA: "cognito_auth_data",
-        CONFIG: "cognito_config",
-      };
-
-      // 初期化処理
-      window.addEventListener("DOMContentLoaded", () => {
-        restoreSession();
-      });
-
-      // セッションから認証状態を復元
-      function restoreSession() {
-        const sessionStatus = document.getElementById("sessionStatus");
-
-        try {
-          // 設定を復元
-          const savedConfig = sessionStorage.getItem(SESSION_KEYS.CONFIG);
-          if (savedConfig) {
-            config = JSON.parse(savedConfig);
-            document.getElementById("region").value = config.region;
-            document.getElementById("userPoolId").value = config.userPoolId;
-            document.getElementById("clientId").value = config.clientId;
-
-            // Cognitoクライアントを初期化
-            cognitoClient = new CognitoIdentityProviderClient({
-              region: config.region,
-            });
-
-            // 設定完了状態を表示
-            updateConfigStatus(true);
-          }
-
-          // 認証データを復元
-          const savedAuthData = sessionStorage.getItem(SESSION_KEYS.AUTH_DATA);
-          if (savedAuthData && cognitoClient) {
-            sessionStatus.classList.remove("hidden");
-
-            const authData = JSON.parse(savedAuthData);
-
-            // トークンの有効期限をチェック
-            const decodedToken = jwtDecode(authData.IdToken);
-            const currentTime = Math.floor(Date.now() / 1000);
-
-            if (decodedToken.exp > currentTime) {
-              // トークンが有効な場合、認証状態を復元
-              currentUser = authData;
-              showLoggedInState(true);
-              console.log("セッションから認証状態を復元しました");
-            } else {
-              // トークンが期限切れの場合、セッションをクリア
-              console.log("トークンが期限切れのため、セッションをクリアします");
-              clearSession();
-            }
-          }
-        } catch (error) {
-          console.error("セッション復元エラー:", error);
-          clearSession();
-        } finally {
-          sessionStatus.classList.add("hidden");
-        }
-      }
-
-      // セッションをクリア
-      function clearSession() {
-        sessionStorage.removeItem(SESSION_KEYS.AUTH_DATA);
-        currentUser = null;
-      }
+          restoreSession();
+        });
 
       // 認証データをセッションに保存
       function saveAuthToSession(authData) {
@@ -365,103 +233,6 @@
           JSON.stringify(authData)
         );
       }
-
-      // 設定をセッションに保存
-      function saveConfigToSession(configData) {
-        sessionStorage.setItem(SESSION_KEYS.CONFIG, JSON.stringify(configData));
-      }
-
-      // ログイン後の状態を表示
-      function showLoggedInState(isRestored = false) {
-        const decodedToken = jwtDecode(currentUser.IdToken);
-        document.getElementById("idTokenDisplay").textContent = JSON.stringify(
-          decodedToken,
-          null,
-          2
-        );
-
-        // 有効期限を表示
-        const expiryDate = new Date(decodedToken.exp * 1000);
-        document.getElementById("tokenExpiry").textContent =
-          expiryDate.toLocaleString("ja-JP");
-
-        // セッション復元の表示
-        if (isRestored) {
-          document.getElementById("sessionRestored").classList.remove("hidden");
-        }
-
-        document.getElementById("loginSection").classList.add("hidden");
-        document.getElementById("loggedInSection").classList.remove("hidden");
-      }
-
-      // 設定状態を更新
-      function updateConfigStatus(isValid) {
-        const loginSection = document.getElementById("loginSection");
-        const statusDiv = document.getElementById("configStatus");
-        const signInBtn = document.getElementById("signInBtn");
-
-        if (isValid) {
-          statusDiv.innerHTML = `
-            <div class="flex items-center gap-2">
-              <span class="text-green-500">✅</span>
-              <span>設定完了 - ログイン可能です</span>
-            </div>
-          `;
-          statusDiv.className =
-            "mt-6 text-green-800 bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border-l-4 border-green-400 font-medium";
-
-          // ログイン済みでない場合のみログインセクションを表示
-          if (!currentUser) {
-            loginSection.classList.remove("hidden");
-          }
-          signInBtn.disabled = false;
-        } else {
-          statusDiv.innerHTML = `
-            <div class="flex items-center gap-2">
-              <span class="text-red-500">❌</span>
-              <span>必須項目を入力してください</span>
-            </div>
-          `;
-          statusDiv.className =
-            "mt-6 text-red-800 bg-gradient-to-r from-red-50 to-pink-50 p-4 rounded-lg border-l-4 border-red-400 font-medium";
-          loginSection.classList.add("hidden");
-          signInBtn.disabled = true;
-        }
-      }
-
-      window.toggleConfig = () => {
-        const inputs = document.getElementById("configInputs");
-        const icon = document.getElementById("toggleIcon");
-        const isHidden = inputs.classList.toggle("hidden");
-        icon.textContent = "▶";
-        icon.style.transform = isHidden ? "rotate(0deg)" : "rotate(90deg)";
-      };
-
-      window.validateConfig = () => {
-        config.region = document.getElementById("region").value.trim();
-        config.userPoolId = document.getElementById("userPoolId").value.trim();
-        config.clientId = document.getElementById("clientId").value.trim();
-
-        if (!config.region || !config.userPoolId || !config.clientId) {
-          updateConfigStatus(false);
-          return;
-        }
-
-        cognitoClient = new CognitoIdentityProviderClient({
-          region: config.region,
-        });
-
-        // 設定をセッションに保存
-        saveConfigToSession(config);
-
-        updateConfigStatus(true);
-
-        // 入力欄を閉じる
-        document.getElementById("configInputs").classList.add("hidden");
-        const icon = document.getElementById("toggleIcon");
-        icon.textContent = "▶";
-        icon.style.transform = "rotate(0deg)";
-      };
 
       window.signIn = async () => {
         const email = document.getElementById("email").value.trim();
@@ -480,17 +251,16 @@
         }
 
         try {
+          const config = getConfig();
           const command = new InitiateAuthCommand({
             AuthFlow: "USER_PASSWORD_AUTH",
             ClientId: config.clientId,
             AuthParameters: { USERNAME: email, PASSWORD: password },
           });
 
+          const cognitoClient = getCognitoClient();
           const response = await cognitoClient.send(command);
-          currentUser = response.AuthenticationResult;
-
-          // セッションに保存
-          saveAuthToSession(currentUser);
+          setCurrentUser(response.AuthenticationResult);
 
           showLoggedInState(false);
           alertDiv.classList.add("hidden");
@@ -508,6 +278,8 @@
       };
 
       window.signOut = async () => {
+        const currentUser = getCurrentUser();
+        const cognitoClient = getCognitoClient();
         if (currentUser && cognitoClient) {
           try {
             const command = new GlobalSignOutCommand({
