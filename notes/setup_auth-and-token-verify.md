@@ -68,6 +68,19 @@ $ aws cognito-idp admin-create-user \
     "User": {
         "Username": "17f4ca48-f001-70aa-e580-1eb209721ebf",
         "Attributes": [
+            {
+                "Name": "email",
+                "Value": "demo@example.com"
+            },
+            {
+                "Name": "email_verified",
+                "Value": "true"
+            },
+            {
+                "Name": "sub",
+                "Value": "17f4ca48-f001-70aa-e580-1eb209721ebf"
+            }
+        ],
         "UserCreateDate": "2025-06-28T09:51:58.856000+00:00",
         "UserLastModifiedDate": "2025-06-28T09:51:58.856000+00:00",
         "Enabled": true,
