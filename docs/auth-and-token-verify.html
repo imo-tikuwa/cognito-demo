@@ -114,20 +114,10 @@
             （セッションから復元）
           </span>
         </div>
-        <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-          <h3 class="text-lg font-bold text-gray-800 mb-4">
-            IDトークン (デコード済み):
-          </h3>
-          <pre
-            id="idTokenDisplay"
-            class="bg-gray-900 text-gray-100 p-6 rounded-lg overflow-x-auto text-sm font-mono border border-gray-300 shadow-inner"
-          ></pre>
-          <div class="mt-4 text-sm text-gray-600">
-            <p>
-              <strong>トークン有効期限:</strong> <span id="tokenExpiry"></span>
-            </p>
-          </div>
-        </div>
+
+        <!-- IDトークンの情報を表示 -->
+        <div id="idTokenDisplaySection"></div>
+
         <button
           onclick="signOut()"
           class="mt-6 w-full bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white py-3 px-6 rounded-lg font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200"
@@ -198,7 +188,6 @@
         InitiateAuthCommand,
         GlobalSignOutCommand,
       } from "@aws-sdk/client-cognito-identity-provider";
-      import { jwtDecode } from "jwt-decode";
       import {
         getCognitoClient,
         getCurrentUser,
@@ -211,6 +200,12 @@
         showLoggedInState,
         clearSession,
       } from "./scripts/cognito-config.js";
+
+      fetch("components/id-token-display.html")
+        .then((res) => res.text())
+        .then((html) => {
+          document.getElementById("idTokenDisplaySection").innerHTML = html;
+        });
 
       fetch("components/cognito-config.html")
         .then((res) => res.text())

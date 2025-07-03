@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AWS Cognito認証デモ - リフレッシュトークンで再認証</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "@aws-sdk/client-cognito-identity-provider": "https://esm.sh/@aws-sdk/client-cognito-identity-provider@3.835.0?bundle",
+          "jwt-decode": "https://esm.sh/jwt-decode@4.0.0"
+        }
+      }
+    </script>
+  </head>
+  <body
+    class="bg-gradient-to-br from-slate-50 to-slate-200 min-h-screen py-8 px-4"
+  >
+    <div class="max-w-4xl mx-auto space-y-8">
+      <div class="bg-white rounded-xl shadow-lg p-8 text-center">
+        <h1 class="text-3xl font-bold text-gray-800 mb-3">
+          🔁 リフレッシュトークンで再認証
+        </h1>
+        <p class="text-gray-600 text-lg leading-relaxed">
+          リフレッシュトークンを用いて
+          <code>REFRESH_TOKEN_AUTH</code>
+          認証フローによる再認証を検証します。<br />
+          <span class="text-blue-600"
+            >※ セッションストレージから復元する設定・認証情報が必要です</span
+          >
+        </p>
+      </div>
+
+      <!-- エラーメッセージ -->
+      <div
+        id="errorAlert"
+        class="hidden text-red-700 bg-gradient-to-r from-red-50 to-pink-50 p-4 rounded-lg border-l-4 border-red-400 font-medium"
+      ></div>
+
+      <!-- リフレッシュトークンで再認証 -->
+      <div
+        class="bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl shadow-lg p-8 border-l-4 border-indigo-500 text-center"
+      >
+        <button
+          id="tryRefresh"
+          class="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 px-6 rounded-lg font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200"
+        >
+          リフレッシュトークンで再認証
+        </button>
+      </div>
+
+      <!-- 結果表示 -->
+      <div
+        class="bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl shadow-lg p-8 border-l-4 border-emerald-500"
+      >
+        <div
+          id="refreshTryed"
+          class="hidden bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 p-4 rounded-lg mb-6 border-l-4 border-green-400 font-semibold"
+        >
+          ✅ 再認証成功（REFRESH_TOKEN_AUTH）
+        </div>
+
+        <!-- IDトークンの情報を表示 -->
+        <div id="idTokenDisplaySection"></div>
+      </div>
+
+      <!-- 検証ポイント -->
+      <div
+        class="bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl shadow-lg p-8 border-l-4 border-blue-500"
+      >
+        <h3
+          class="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2"
+        >
+          📋 検証ポイント
+        </h3>
+        <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+          <ul class="space-y-4 text-gray-700">
+            <li class="flex items-start gap-3">
+              <span
+                class="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-2"
+              ></span>
+              <div>
+                <strong class="text-blue-600">REFRESH_TOKEN_AUTH</strong>
+                フローにより、 ID/アクセストークンを再取得できるか確認します
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <span
+                class="flex-shrink-0 w-2 h-2 bg-green-500 rounded-full mt-2"
+              ></span>
+              <div>
+                セッションストレージに保存された
+                <code>RefreshToken</code> を使用します。
+                有効なトークンがない場合はリダイレクトされます。
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <span
+                class="flex-shrink-0 w-2 h-2 bg-yellow-500 rounded-full mt-2"
+              ></span>
+              <div>
+                <strong class="text-yellow-600">よくわかってない点:</strong>
+                アプリクライアントで
+                <code>ALLOW_REFRESH_TOKEN_AUTH</code> が無効でも
+                リフレッシュ処理が成功する？？
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <span
+                class="flex-shrink-0 w-2 h-2 bg-purple-500 rounded-full mt-2"
+              ></span>
+              <div>
+                成功時は新しい ID
+                トークンを取得し、ペイロードの表示を更新します。
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <span
+                class="flex-shrink-0 w-2 h-2 bg-red-500 rounded-full mt-2"
+              ></span>
+              <div>
+                失敗時はトークンが無効、またはフローが許可されていない可能性があります。
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import {
+        CognitoIdentityProviderClient,
+        InitiateAuthCommand,
+      } from "@aws-sdk/client-cognito-identity-provider";
+      import {
+        setCurrentUser,
+        SESSION_KEYS,
+      } from "./scripts/cognito-config.js";
+      import { updateIdTokenDisplay } from "./scripts/id-token-display.js";
+
+      // 初期チェック: Cognito 設定 または 認証結果情報 が無い場合は認証ページへリダイレクト
+      const savedConfig = JSON.parse(
+        sessionStorage.getItem(SESSION_KEYS.CONFIG)
+      );
+      const savedAuthData = JSON.parse(
+        sessionStorage.getItem(SESSION_KEYS.AUTH_DATA)
+      );
+
+      if (
+        !savedConfig ||
+        !savedConfig.clientId ||
+        !savedAuthData ||
+        !savedAuthData.RefreshToken
+      ) {
+        alert(
+          "リフレッシュトークンまたはCognito設定が存在しません。認証画面に遷移します。"
+        );
+        location.href = "./auth-and-token-verify";
+      }
+
+      fetch("components/id-token-display.html")
+        .then((res) => res.text())
+        .then((html) => {
+          document.getElementById("idTokenDisplaySection").innerHTML = html;
+
+          // 現在のIDトークンを表示
+          updateIdTokenDisplay(savedAuthData);
+        });
+
+      document
+        .getElementById("tryRefresh")
+        .addEventListener("click", async () => {
+          const alertDiv = document.getElementById("errorAlert");
+          alertDiv.classList.add("hidden");
+
+          try {
+            const command = new InitiateAuthCommand({
+              AuthFlow: "REFRESH_TOKEN_AUTH",
+              ClientId: savedConfig.clientId,
+              AuthParameters: {
+                REFRESH_TOKEN: savedAuthData.RefreshToken,
+              },
+            });
+
+            // Cognitoクライアントを初期化
+            const cognitoClient = new CognitoIdentityProviderClient({
+              region: savedConfig.region,
+            });
+            const response = await cognitoClient.send(command);
+            setCurrentUser({
+              ...response.AuthenticationResult,
+              RefreshToken: savedAuthData.RefreshToken,
+            });
+
+            // IDトークンの表示を更新
+            updateIdTokenDisplay(response.AuthenticationResult);
+
+            document.getElementById("refreshTryed").classList.remove("hidden");
+          } catch (e) {
+            alertDiv.textContent = `再認証失敗: ${e.message}`;
+            alertDiv.classList.remove("hidden");
+          }
+        });
+    </script>
+  </body>
+</html>

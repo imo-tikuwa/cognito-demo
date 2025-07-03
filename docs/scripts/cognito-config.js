@@ -1,5 +1,6 @@
 import { CognitoIdentityProviderClient } from "@aws-sdk/client-cognito-identity-provider";
 import { jwtDecode } from "jwt-decode";
+import { updateIdTokenDisplay } from "./id-token-display.js";
 
 let cognitoClient = null;
 let currentUser = null;
@@ -111,22 +112,8 @@ export function restoreSession() {
 // ログイン後の状態を表示
 export function showLoggedInState(isRestored = false) {
   const currentUser = getCurrentUser();
-  const decodedToken = jwtDecode(currentUser.IdToken);
-  document.getElementById("idTokenDisplay").textContent = JSON.stringify(
-    decodedToken,
-    null,
-    2
-  );
 
-  // 有効期限を表示
-  const expiryDate = new Date(decodedToken.exp * 1000);
-  document.getElementById("tokenExpiry").textContent =
-    expiryDate.toLocaleString("ja-JP");
-
-  // セッション復元の表示
-  if (isRestored) {
-    document.getElementById("sessionRestored").classList.remove("hidden");
-  }
+  updateIdTokenDisplay(currentUser, { showRestored: isRestored });
 
   document.getElementById("loginSection").classList.add("hidden");
   document.getElementById("loggedInSection").classList.remove("hidden");
