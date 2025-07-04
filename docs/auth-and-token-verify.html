@@ -193,7 +193,6 @@
         getCurrentUser,
         setCurrentUser,
         getConfig,
-        SESSION_KEYS,
         toggleConfig,
         validateConfig,
         restoreSession,
@@ -220,14 +219,6 @@
 
           restoreSession();
         });
-
-      // 認証データをセッションに保存
-      function saveAuthToSession(authData) {
-        sessionStorage.setItem(
-          SESSION_KEYS.AUTH_DATA,
-          JSON.stringify(authData)
-        );
-      }
 
       window.signIn = async () => {
         const email = document.getElementById("email").value.trim();

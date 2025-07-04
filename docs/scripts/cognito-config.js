@@ -1,6 +1,12 @@
 import { CognitoIdentityProviderClient } from "@aws-sdk/client-cognito-identity-provider";
 import { jwtDecode } from "jwt-decode";
 import { updateIdTokenDisplay } from "./id-token-display.js";
+import {
+  SESSION_KEYS,
+  setSession,
+  getSession,
+  removeSession,
+} from "./session-manager.js";
 
 let cognitoClient = null;
 let currentUser = null;
@@ -14,17 +20,11 @@ export function getCurrentUser() {
 }
 export function setCurrentUser(user) {
   currentUser = user;
-  sessionStorage.setItem(SESSION_KEYS.AUTH_DATA, JSON.stringify(user));
+  setSession(SESSION_KEYS.AUTH_DATA, user);
 }
 export function getConfig() {
   return config;
 }
-
-// セッションストレージのキー
-export const SESSION_KEYS = {
-  AUTH_DATA: "cognito_auth_data",
-  CONFIG: "cognito_config",
-};
 
 export function toggleConfig() {
   const inputs = document.getElementById("configInputs");
@@ -44,7 +44,7 @@ export function validateConfig() {
     return;
   }
 
-  sessionStorage.setItem(SESSION_KEYS.CONFIG, JSON.stringify(config));
+  setSession(SESSION_KEYS.CONFIG, config);
   updateConfigStatus(true);
 
   // Cognitoクライアントを初期化
@@ -63,12 +63,11 @@ export function validateConfig() {
 export function restoreSession() {
   try {
     // 設定を復元
-    const savedConfig = sessionStorage.getItem(SESSION_KEYS.CONFIG);
+    const savedConfig = getSession(SESSION_KEYS.CONFIG);
     if (savedConfig) {
-      const parsed = JSON.parse(savedConfig);
-      config.region = parsed.region;
-      config.userPoolId = parsed.userPoolId;
-      config.clientId = parsed.clientId;
+      config.region = savedConfig.region;
+      config.userPoolId = savedConfig.userPoolId;
+      config.clientId = savedConfig.clientId;
 
       document.getElementById("region").value = config.region;
       document.getElementById("userPoolId").value = config.userPoolId;
@@ -84,17 +83,15 @@ export function restoreSession() {
     }
 
     // 認証データを復元
-    const savedAuthData = sessionStorage.getItem(SESSION_KEYS.AUTH_DATA);
+    const savedAuthData = getSession(SESSION_KEYS.AUTH_DATA);
     if (savedAuthData && cognitoClient) {
-      const authData = JSON.parse(savedAuthData);
-
       // トークンの有効期限をチェック
-      const decodedToken = jwtDecode(authData.IdToken);
+      const decodedToken = jwtDecode(savedAuthData.IdToken);
       const currentTime = Math.floor(Date.now() / 1000);
 
       if (decodedToken.exp > currentTime) {
         // トークンが有効な場合、認証状態を復元
-        currentUser = authData;
+        currentUser = savedAuthData;
         showLoggedInState(true);
         console.log("セッションから認証状態を復元しました");
       } else {
@@ -157,6 +154,6 @@ function updateConfigStatus(isValid) {
 
 // セッションをクリア
 export function clearSession() {
-  sessionStorage.removeItem(SESSION_KEYS.AUTH_DATA);
+  removeSession(SESSION_KEYS.AUTH_DATA);
   currentUser = null;
 }

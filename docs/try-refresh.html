@@ -133,19 +133,13 @@
         CognitoIdentityProviderClient,
         InitiateAuthCommand,
       } from "@aws-sdk/client-cognito-identity-provider";
-      import {
-        setCurrentUser,
-        SESSION_KEYS,
-      } from "./scripts/cognito-config.js";
+      import { setCurrentUser } from "./scripts/cognito-config.js";
       import { updateIdTokenDisplay } from "./scripts/id-token-display.js";
+      import { SESSION_KEYS, getSession } from "./scripts/session-manager.js";
 
       // 初期チェック: Cognito 設定 または 認証結果情報 が無い場合は認証ページへリダイレクト
-      const savedConfig = JSON.parse(
-        sessionStorage.getItem(SESSION_KEYS.CONFIG)
-      );
-      const savedAuthData = JSON.parse(
-        sessionStorage.getItem(SESSION_KEYS.AUTH_DATA)
-      );
+      const savedConfig = getSession(SESSION_KEYS.CONFIG);
+      const savedAuthData = getSession(SESSION_KEYS.AUTH_DATA);
 
       if (
         !savedConfig ||
