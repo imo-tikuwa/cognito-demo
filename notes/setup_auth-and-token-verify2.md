@@ -7,7 +7,11 @@ setup_auth-and-token-verify.md の続き
 
 ## グループ作成
 
+Demo というグループを作成する
+
 ```bash
+$ USER_POOL_ID=[ユーザープールID]
+
 $ aws cognito-idp create-group \
   --user-pool-id ${USER_POOL_ID} \
   --group-name Demo
@@ -31,8 +35,6 @@ $ aws cognito-idp create-group \
 ```
 
 ## グループにユーザーを追加
-
-Demo というグループを作成する
 
 ```bash
 $ USER_EMAIL=demo@example.com
