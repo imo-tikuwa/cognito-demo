@@ -258,21 +258,21 @@ Invalid value for parameter Precedence, value: -1, valid min value: 0
 
 ## その他
 
-- 検証用のユーザーについて DemoWithRole グループに所属するよう戻した
-- 備考の検証で作成した DemoWithRole2 は削除した
+今回の検証で作成した Cognito の「ユーザープール」「ユーザー」「アプリケーションクライアント」を除くすべてのリソースについて名称がわかりづらく後続の手順の混乱の元になるため以下のリソースを削除することにした
+
+- Demo グループ
+- DemoWithRole グループ
+- cognito-test-role IAM ロール
 
 ```bash
-$ aws cognito-idp admin-remove-user-from-group \
+$ aws cognito-idp delete-group \
   --user-pool-id ${USER_POOL_ID} \
-  --username demo@example.com \
-  --group-name DemoWithRole2
-
-$ aws cognito-idp admin-add-user-to-group \
-  --user-pool-id ${USER_POOL_ID} \
-  --username demo@example.com \
-  --group-name DemoWithRole
+  --group-name Demo
 
 $ aws cognito-idp delete-group \
   --user-pool-id ${USER_POOL_ID} \
-  --group-name DemoWithRole2
+  --group-name DemoWithRole
+
+$ aws iam delete-role \
+  --role-name cognito-test-role
 ```
