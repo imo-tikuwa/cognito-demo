@@ -2,10 +2,7 @@
 export const SESSION_KEYS = {
   AUTH_DATA: "cognito_auth_data",
   CONFIG: "cognito_config",
-  // 将来のIDプール機能用
-  IDENTITY_POOL_CONFIG: "identity_pool_config",
-  AWS_CREDENTIALS: "aws_credentials",
-  IDENTITY_ID: "identity_id",
+  IDENTITY_POOL_CONFIG: "cognito_identity_pool_config",
 };
 
 /**

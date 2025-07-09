@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AWS Cognito認証デモ - IDプールの検証</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "@aws-sdk/client-cognito-identity": "https://esm.sh/@aws-sdk/client-cognito-identity@3.835.0?bundle",
+          "@aws-sdk/client-sts": "https://esm.sh/@aws-sdk/client-sts@3.835.0?bundle",
+          "jwt-decode": "https://esm.sh/jwt-decode@4.0.0"
+        }
+      }
+    </script>
+  </head>
+  <body
+    class="bg-gradient-to-br from-slate-50 to-slate-200 min-h-screen py-8 px-4"
+  >
+    <div class="max-w-4xl mx-auto space-y-8">
+      <div class="bg-white rounded-xl shadow-lg p-8 text-center">
+        <h1 class="text-3xl font-bold text-gray-800 mb-3">
+          🔐 AWS Cognito IDプール検証デモ
+        </h1>
+        <p class="text-gray-600 text-lg leading-relaxed">
+          Cognitoユーザープールの認証情報を使用してIDプールからAWSクレデンシャルを取得し、<br />
+          割り当てられたIAMロール情報などを確認します。<br />
+          <span class="text-blue-600">
+            ※ ユーザープールの認証とIDプール設定はセッションストレージで管理
+          </span>
+        </p>
+      </div>
+
+      <!-- IDプール設定 -->
+      <div id="identityPoolConfig"></div>
+
+      <!-- 現在のトークン情報 -->
+      <div
+        class="bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl shadow-lg p-8 border-l-4 border-emerald-500"
+      >
+        <div
+          class="hidden bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 p-4 rounded-lg mb-6 border-l-4 border-green-400 font-semibold"
+        >
+          🎫 現在のトークン情報
+        </div>
+
+        <!-- IDトークンの情報を表示 -->
+        <div id="idTokenDisplaySection"></div>
+      </div>
+
+      <!-- クレデンシャル検証セクション -->
+      <div
+        id="credentialVerifySection"
+        class="hidden bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl shadow-lg p-8 border-l-4 border-emerald-500"
+      >
+        <h2
+          class="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2"
+        >
+          🔍 クレデンシャル検証
+        </h2>
+        <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+          <p class="text-sm text-gray-600 mb-4">
+            IDプールからクレデンシャルを取得し、割り当てられたロールを確認します。
+          </p>
+          <button
+            onclick="verifyCredential()"
+            id="verifyCredentialBtn"
+            class="w-full bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white py-3 px-6 rounded-lg font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200"
+          >
+            クレデンシャルを検証
+          </button>
+        </div>
+      </div>
+
+      <!-- クレデンシャル取得結果表示セクション -->
+      <div
+        id="credentialVerifyResultSection"
+        class="hidden bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl shadow-lg p-8 border-l-4 border-emerald-500"
+      >
+        <h2
+          class="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2"
+        >
+          📋 クレデンシャル取得結果
+        </h2>
+        <div
+          id="credentialVerifyResult"
+          class="text-sm text-gray-800 space-y-2"
+        ></div>
+        <div id="copyAwsCliCommandSection" class="mt-4">
+          <button
+            onclick="copyAwsCliCommand()"
+            class="w-full bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white py-3 px-6 rounded-lg font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200"
+          >
+            クリップボードに aws-cli 用のS3バケット一覧取得のコマンドをコピー
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import {
+        CognitoIdentityClient,
+        GetIdCommand,
+        GetCredentialsForIdentityCommand,
+      } from "@aws-sdk/client-cognito-identity";
+      import { GetCallerIdentityCommand, STSClient } from "@aws-sdk/client-sts";
+      import { updateIdTokenDisplay } from "./scripts/id-token-display.js";
+      import { SESSION_KEYS, getSession } from "./scripts/session-manager.js";
+      import { setupIdentityPoolConfig } from "./scripts/identity-pool-config.js";
+
+      // 初期チェック: Cognito 設定 または 認証結果情報 が無い場合は認証ページへリダイレクト
+      const savedConfig = getSession(SESSION_KEYS.CONFIG);
+      const savedAuthData = getSession(SESSION_KEYS.AUTH_DATA);
+
+      if (
+        !savedConfig ||
+        !savedConfig.region ||
+        !savedAuthData ||
+        !savedAuthData.IdToken
+      ) {
+        alert(
+          "Cognito設定が存在しない or 認証していません。認証画面に遷移します。"
+        );
+        location.href = "./auth-and-token-verify";
+      }
+
+      fetch("components/identity-pool-config.html")
+        .then((res) => res.text())
+        .then((html) => {
+          document.getElementById("identityPoolConfig").innerHTML = html;
+
+          setupIdentityPoolConfig();
+        });
+
+      fetch("components/id-token-display.html")
+        .then((res) => res.text())
+        .then((html) => {
+          document.getElementById("idTokenDisplaySection").innerHTML = html;
+          // 現在のIDトークンを表示
+          updateIdTokenDisplay(savedAuthData);
+        });
+
+      // クレデンシャルを検証
+      window.verifyCredential = async function () {
+        const verifyCredentialBtn = document.getElementById(
+          "verifyCredentialBtn"
+        );
+        verifyCredentialBtn.disabled = true;
+        verifyCredentialBtn.innerHTML = `<div class="flex items-center justify-center gap-2"><div class="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div><span>テスト実行中...</span></div>`;
+
+        const credentialVerifyResultSection = document.getElementById(
+          "credentialVerifyResultSection"
+        );
+        const credentialVerifyResult = document.getElementById(
+          "credentialVerifyResult"
+        );
+        const copyAwsCliCommandSection = document.getElementById(
+          "copyAwsCliCommandSection"
+        );
+        try {
+          const currentUser = getSession(SESSION_KEYS.AUTH_DATA);
+          const userPoolConfig = getSession(SESSION_KEYS.CONFIG);
+          const idPoolConfig = getSession(SESSION_KEYS.IDENTITY_POOL_CONFIG);
+
+          const cognitoIdentity = new CognitoIdentityClient({
+            region: idPoolConfig.region,
+          });
+          const identityResponse = await cognitoIdentity.send(
+            new GetIdCommand({
+              IdentityPoolId: idPoolConfig.identityPoolId,
+              Logins: {
+                [`cognito-idp.${userPoolConfig.region}.amazonaws.com/${userPoolConfig.userPoolId}`]:
+                  currentUser.IdToken,
+              },
+            })
+          );
+
+          const credentialsResponse = await cognitoIdentity.send(
+            new GetCredentialsForIdentityCommand({
+              IdentityId: identityResponse.IdentityId,
+              Logins: {
+                [`cognito-idp.${userPoolConfig.region}.amazonaws.com/${userPoolConfig.userPoolId}`]:
+                  currentUser.IdToken,
+              },
+            })
+          );
+
+          // 当初はS3のバケット一覧を取得するコードだったところ
+          // 回避できないCORSエラーの問題を受けてコードを修正（取得したクレデンシャルの発行元のロールを確認のみ実施）
+          const stsClient = new STSClient({
+            region: idPoolConfig.region,
+            credentials: {
+              accessKeyId: credentialsResponse.Credentials.AccessKeyId,
+              secretAccessKey: credentialsResponse.Credentials.SecretKey,
+              sessionToken: credentialsResponse.Credentials.SessionToken,
+            },
+          });
+          const callerIdentity = await stsClient.send(
+            new GetCallerIdentityCommand({})
+          );
+
+          credentialVerifyResult.innerHTML = `
+            <div class="text-green-700 bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border-l-4 border-green-400 font-medium mt-4">
+              <div class="flex items-center gap-2 mb-3">
+                <span class="text-green-500">✅</span>
+                <strong>クレデンシャルの取得に成功しました</strong>
+              </div>
+              <div class="truncate">
+                <strong>アカウントID:</strong> ${callerIdentity.Account}
+              </div>
+              <div class="truncate">
+                <strong>ユーザーID:</strong> ${callerIdentity.UserId}
+              </div>
+              <div class="truncate">
+                <strong>ARN:</strong> ${callerIdentity.Arn}
+              </div>
+              <div class="truncate">
+                <strong>AWS_ACCESS_KEY_ID:</strong>
+                <code id="accessKeyId">${credentialsResponse.Credentials.AccessKeyId}</code>
+              </div>
+              <div class="truncate">
+                <strong>AWS_SECRET_ACCESS_KEY:</strong>
+                <code id="secretKey">${credentialsResponse.Credentials.SecretKey}</code>
+              </div>
+              <div class="truncate">
+                <strong>AWS_SESSION_TOKEN:</strong>
+                <code id="sessionToken">${credentialsResponse.Credentials.SessionToken}</code>
+              </div>
+              <div class="truncate">
+                <strong>REGION:</strong>
+                <code id="region">${idPoolConfig.region}</code>
+              </div>
+            </div>
+          `;
+          copyAwsCliCommandSection.classList.remove("hidden");
+        } catch (error) {
+          console.error("クレデンシャル検証エラー:", error);
+          credentialVerifyResult.innerHTML = `
+            <div class="text-red-700 bg-gradient-to-r from-red-50 to-pink-50 p-4 rounded-lg border-l-4 border-red-400 font-medium mt-4">
+              <div class="flex items-center gap-2 mb-3">
+                <span class="text-red-500">❌</span>
+                <strong>クレデンシャルの取得に失敗しました</strong>
+              </div>
+              <div class="text-sm">
+                <strong>エラー:</strong> ${error.message}
+              </div>
+            </div>
+          `;
+          copyAwsCliCommandSection.classList.add("hidden");
+        } finally {
+          verifyCredentialBtn.disabled = false;
+          verifyCredentialBtn.innerHTML = "クレデンシャルを検証";
+          credentialVerifyResultSection.classList.remove("hidden");
+        }
+      };
+
+      // aws-cliでS3のバケット一覧取得を行うコマンドをクリップボードにコピー
+      // ※ブラウザ上ではS3バケット一覧の取得についてCORS由来のエラーになるため aws-cli で検証するためのワンライナーをコピーする
+      window.copyAwsCliCommand = function () {
+        const accessKeyId = document.getElementById("accessKeyId").innerText;
+        const secretKey = document.getElementById("secretKey").innerText;
+        const sessionToken = document.getElementById("sessionToken").innerText;
+        const region = document.getElementById("region").innerText;
+        const cmd = `AWS_ACCESS_KEY_ID=${accessKeyId} AWS_SECRET_ACCESS_KEY=${secretKey} AWS_SESSION_TOKEN=${sessionToken} AWS_DEFAULT_REGION=${region} aws s3 ls`;
+        navigator.clipboard.writeText(cmd).then(() => {
+          alert("aws-cli用コマンドをクリップボードにコピーしました");
+        });
+      };
+    </script>
+  </body>
+</html>
