@@ -190,9 +190,9 @@ $ aws cognito-idp admin-add-user-to-group \
 1. [create-identity-pool](https://docs.aws.amazon.com/cli/latest/reference/cognito-identity/create-identity-pool.html) コマンドで ID プロバイダー（Cognito ユーザープール）が1件紐づいたものを作成
 
 ```bash
-REGION=ap-northeast-1
-USER_POOL_ID=[ユーザープールID]
-APP_CLIENT_ID=[アプリクライアントID]
+$ REGION=ap-northeast-1
+$ USER_POOL_ID=[ユーザープールID]
+$ APP_CLIENT_ID=[アプリクライアントID]
 
 $ IDENTITY_POOL_ID=$(aws cognito-identity create-identity-pool \
   --identity-pool-name test-id-pool \
@@ -273,7 +273,7 @@ $ aws iam update-assume-role-policy \
 3. [set-identity-pool-roles](https://docs.aws.amazon.com/cli/latest/reference/cognito-identity/set-identity-pool-roles.html) コマンドで ID プールの「**認証されたアクセス**」と「**ID プロバイダー**」の詳細な設定を実施
 
 ```bash
-DEFAULT_ROLE_ARN=arn:aws:iam::************:role/cognito-test-default-role
+$ DEFAULT_ROLE_ARN=arn:aws:iam::************:role/cognito-test-default-role
 
 $ aws cognito-identity set-identity-pool-roles \
   --identity-pool-id ${IDENTITY_POOL_ID} \
@@ -317,7 +317,7 @@ $ aws cognito-identity set-identity-pool-roles \
 
 - ユーザーは IAM ロール設定済みの Admin グループに所属するので `cognito:preferred_role` クレームの存在を確認できる
 
-2. 新規作成したIDプールの検証ページ（/federated-identity）で ID プールIDを設定に入力
+2. 新規作成したIDプールの検証ページで ID プールIDを設定に入力
 
 `この設定値はユーザープールの設定と同様セッションストレージで管理するので初回のみの入力でOK`
 
@@ -346,7 +346,7 @@ $ aws cognito-identity set-identity-pool-roles \
 
 ![](images/setup_federated-identity/20250709_152921.png)
 
-2. IDプールの検証ページ（/federated-identity）で「クレデンシャルを検証」をクリックしてクレデンシャルの取得に成功することを確認
+2. IDプールの検証ページで「クレデンシャルを検証」をクリックしてクレデンシャルの取得に成功することを確認
 
 ![](images/setup_federated-identity/20250709_153134.png)
 
