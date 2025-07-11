@@ -1,4 +1,4 @@
-# setup_federated-identity2.md
+# setup_federated-identity2
 
 setup_federated-identity.md の続き
 
