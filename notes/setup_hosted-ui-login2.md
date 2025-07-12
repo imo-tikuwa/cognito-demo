@@ -167,3 +167,99 @@ $ aws cognito-idp update-user-pool \
 サインアップ画面の URL（認証画面の URL の `/login` を `/signup` に置き換え）に直アクセスした場合にもエラー画面に遷移することを確認できました
 
 ![](images/setup_hosted-ui-login2/20250711_184154.png)
+
+## 2025/7/12 追記 - アプリクライアントの認証フローがリセットされてしまった
+
+[既存のアプリクライアントについて Hosted UI が利用可能なよう更新](#既存のアプリクライアントについて-hosted-ui-が利用可能なよう更新) で実施したアプリクライアントの更新によって認証フローの設定がリセットされてしまった模様？
+
+認証フローの設定について以下のような状態となってしまっていることを確認
+
+![](images/setup_hosted-ui-login2/20250712_113951.png)
+
+- `ALLOW_USER_SRP_AUTH`、`ALLOW_CUSTOM_AUTH`、`ALLOW_REFRESH_TOKEN_AUTH` の3つの認証フローが選択されている
+- 元々は `ALLOW_USER_PASSWORD_AUTH` 認証フローのみを有効化していた状態
+
+---
+
+検証画面からの `USER_PASSWORD_AUTH` を使用した [InitiateAuth](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/client/cognito-identity-provider/command/InitiateAuthCommand/) コマンドにも失敗することを確認
+
+![](images/setup_hosted-ui-login2/20250712_114303.png)
+
+---
+
+`cognito-idp update-user-pool-client` コマンドで更新を掛けたときに認証フローの設定について未指定だったことでリセットされてしまったということと考えられる
+
+そのため以下のように `--explicit-auth-flows` オプションを指定して再度更新を実施
+
+```bash
+$ USER_POOL_ID=[ユーザープールID]
+$ APP_CLIENT_ID=[アプリクライアントID]
+
+$ aws cognito-idp update-user-pool-client \
+  --user-pool-id ${USER_POOL_ID} \
+  --client-id ${APP_CLIENT_ID} \
+  --supported-identity-providers "COGNITO" \
+  --allowed-o-auth-flows-user-pool-client \
+  --allowed-o-auth-flows "code" \
+  --allowed-o-auth-scopes "openid" "email" "profile" \
+  --callback-urls "http://localhost:3000/callback.html" "https://imo-tikuwa.github.io/cognito-demo/callback.html" \
+  --logout-urls "http://localhost:3000/" "https://imo-tikuwa.github.io/cognito-demo/" \
+  --explicit-auth-flows "ALLOW_USER_PASSWORD_AUTH"
+```
+
+---
+
+前回の更新コマンドとのレスポンスの差分は以下の通り
+
+```diff
+{
+    "UserPoolClient": {
+        "UserPoolId": "ap-northeast-1_*********",
+        "ClientName": "test-userpool-client",
+        "ClientId": "**************************",
+-        "LastModifiedDate": "2025-07-11T09:09:19.680000+00:00",
++        "LastModifiedDate": "2025-07-12T02:46:49.748000+00:00",
+        "CreationDate": "2025-07-02T03:27:39.867000+00:00",
+        "RefreshTokenValidity": 30,
+        "TokenValidityUnits": {},
++        "ExplicitAuthFlows": [
++            "ALLOW_USER_PASSWORD_AUTH"
++        ],
+        "SupportedIdentityProviders": [
+            "COGNITO"
+        ],
+        "CallbackURLs": [
+            "https://imo-tikuwa.github.io/cognito-demo/callback.html",
+            "http://localhost:3000/callback.html"
+        ],
+        "LogoutURLs": [
+            "https://imo-tikuwa.github.io/cognito-demo/",
+            "http://localhost:3000/"
+        ],
+        "AllowedOAuthFlows": [
+            "code"
+        ],
+        "AllowedOAuthScopes": [
+            "openid",
+            "profile",
+            "email"
+        ],
+        "AllowedOAuthFlowsUserPoolClient": true,
+        "EnableTokenRevocation": true,
+        "EnablePropagateAdditionalUserContextData": false,
+        "AuthSessionValidity": 3
+    }
+}
+```
+
+---
+
+画面から見たときの様子も元通りになったことを確認
+
+![](images/setup_hosted-ui-login2/20250712_114947.png)
+
+---
+
+検証ページでの動作確認が行えることも確認
+
+![](images/setup_hosted-ui-login2/20250712_115046.png)
