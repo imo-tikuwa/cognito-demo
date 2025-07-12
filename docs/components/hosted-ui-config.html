@@ -1,0 +1,46 @@
+<div
+  class="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl shadow-lg p-8 border-l-4 border-blue-500"
+>
+  <h3
+    id="toggleHostedUIConfig"
+    class="text-xl font-semibold text-gray-800 cursor-pointer select-none flex items-center gap-2 hover:text-blue-600 transition-colors duration-200"
+  >
+    ⚙️ Hosted UI 設定
+    <span
+      id="toggleHostedUIIcon"
+      class="text-blue-500 transform transition-transform duration-200"
+      >▶</span
+    >
+  </h3>
+  <div id="hostedUIConfigInputs" class="mt-6 hidden">
+    <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+      <div class="grid gap-6">
+        <div>
+          <label
+            for="hostedUIDomain"
+            class="block text-sm font-semibold text-gray-700 mb-2"
+            >Hosted UI ドメイン:</label
+          >
+          <input
+            type="text"
+            id="hostedUIDomain"
+            placeholder="https://your-domain.auth.your-region.amazoncognito.com"
+            class="w-full border-2 border-gray-300 p-3 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
+          />
+        </div>
+      </div>
+      <button
+        id="validateHostedUIConfig"
+        class="mt-6 w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 px-6 rounded-lg font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200"
+      >
+        設定を確認
+      </button>
+    </div>
+  </div>
+  <div
+    id="hostedUIConfigStatus"
+    class="mt-6 text-amber-800 bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-lg border-l-4 border-amber-400 font-medium"
+  >
+    ⚙️ 設定を入力してください
+  </div>
+</div>

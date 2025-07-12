@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AWS Cognito認証デモ - Hosted UI 検証</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "jwt-decode": "https://esm.sh/jwt-decode@4.0.0"
+        }
+      }
+    </script>
+  </head>
+  <body
+    class="bg-gradient-to-br from-slate-50 to-slate-200 min-h-screen py-8 px-4"
+  >
+    <div class="max-w-4xl mx-auto space-y-8">
+      <div class="bg-white rounded-xl shadow-lg p-8 text-center">
+        <h1 class="text-3xl font-bold text-gray-800 mb-3">
+          🔐 AWS Cognito Hosted UI 検証デモ
+        </h1>
+        <p class="text-gray-600 text-lg leading-relaxed">
+          AWS Cognito の Hosted UI （および
+          マネージドログイン）を使用した認証を検証します。<br />
+          <span class="text-blue-600">
+            ※ ユーザープール設定、Hosted UI
+            設定はセッションストレージで管理します
+          </span>
+        </p>
+      </div>
+
+      <!-- Cognito 設定 -->
+      <div id="cognitoConfig"></div>
+
+      <!-- Hosted UI 設定 -->
+      <div id="hostedUIConfig"></div>
+
+      <!-- ログインセクション -->
+      <div
+        id="authExecuteSection"
+        class="hidden bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl shadow-lg p-8 border-l-4 border-indigo-500 transition-all duration-300"
+      >
+        <h2
+          class="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2"
+        >
+          🔐 Hosted UI 認証
+        </h2>
+        <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+          <div class="space-y-4">
+            <button
+              onclick="redirectToHostedUI()"
+              id="signInBtn"
+              class="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white py-3 px-6 rounded-lg font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200"
+            >
+              🌐 ログイン画面に遷移
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 検証ポイント -->
+      <div
+        class="bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl shadow-lg p-8 border-l-4 border-blue-500"
+      >
+        <h3
+          class="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2"
+        >
+          📋 Hosted UI 検証ポイント
+        </h3>
+        <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+          <ul class="space-y-4 text-gray-700">
+            <li class="flex items-start gap-3">
+              <span
+                class="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-2"
+              ></span>
+              <div>
+                <strong class="text-blue-600">OAuth2/OpenID Connect</strong> -
+                標準的な認証フローに準拠
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <span
+                class="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-2"
+              ></span>
+              <div>
+                <strong class="text-blue-600">Authorization Code Flow</strong>
+                - 認証後のコールバック先（callback.html）で code
+                を元にしたトークンとの交換を検証
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <span
+                class="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-2"
+              ></span>
+              <div>
+                <strong class="text-blue-600">マネージドUI</strong> -
+                AWSが提供するカスタマイズ可能なログイン画面の検証を実施
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { SESSION_KEYS, getSession } from "./scripts/session-manager.js";
+      import { setupCognitoConfig } from "./scripts/cognito-config.js";
+      import {
+        setupHostedUIConfig,
+        generateAuthURL,
+      } from "./scripts/hosted-ui-config.js";
+
+      fetch("components/cognito-config.html")
+        .then((res) => res.text())
+        .then((html) => {
+          document.getElementById("cognitoConfig").innerHTML = html;
+
+          setupCognitoConfig();
+        });
+
+      fetch("components/hosted-ui-config.html")
+        .then((res) => res.text())
+        .then((html) => {
+          document.getElementById("hostedUIConfig").innerHTML = html;
+
+          setupHostedUIConfig();
+        });
+
+      // Cognito（ユーザープール）設定と Hosted UI 設定の両方が埋まっている必要があるため雑だけど 0.5 秒間隔でチェック
+      let prevCognitoConfig = null;
+      let prevHostedUIConfig = null;
+      setInterval(() => {
+        const cognitoConfig = getSession(SESSION_KEYS.CONFIG);
+        const hostedUIConfig = getSession(SESSION_KEYS.HOSTED_UI_CONFIG);
+        const authExecuteSection =
+          document.getElementById("authExecuteSection");
+
+        // 値の変更があったときのみ処理
+        if (
+          cognitoConfig !== prevCognitoConfig ||
+          hostedUIConfig !== prevHostedUIConfig
+        ) {
+          prevCognitoConfig = cognitoConfig;
+          prevHostedUIConfig = hostedUIConfig;
+
+          const bothPresent = cognitoConfig && hostedUIConfig;
+
+          if (authExecuteSection) {
+            authExecuteSection.classList.toggle("hidden", !bothPresent);
+          }
+        }
+      }, 500);
+
+      // Hosted UI に遷移
+      window.redirectToHostedUI = function () {
+        const config = getSession(SESSION_KEYS.CONFIG);
+        const hostedUIConfig = getSession(SESSION_KEYS.HOSTED_UI_CONFIG);
+
+        if (!hostedUIConfig.domain) {
+          alert("Hosted UI ドメインが設定されていません。");
+          return;
+        }
+
+        const authUrl = generateAuthURL(config, hostedUIConfig);
+        console.log("Hosted UI へリダイレクト:", authUrl);
+
+        // 同一タブでリダイレクト
+        window.location.href = authUrl;
+      };
+    </script>
+  </body>
+</html>

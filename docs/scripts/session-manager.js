@@ -3,6 +3,7 @@ export const SESSION_KEYS = {
   AUTH_DATA: "cognito_auth_data",
   CONFIG: "cognito_config",
   IDENTITY_POOL_CONFIG: "cognito_identity_pool_config",
+  HOSTED_UI_CONFIG: "cognito_hosted_ui_config",
 };
 
 /**

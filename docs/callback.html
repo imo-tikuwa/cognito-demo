@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AWS Cognito認証デモ - Hosted UI からの認証コールバック処理</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  </head>
+  <body
+    class="bg-gradient-to-br from-slate-50 to-slate-200 min-h-screen py-8 px-4"
+  >
+    <div class="max-w-4xl mx-auto space-y-8">
+      <div class="bg-white rounded-xl shadow-lg p-8 text-center">
+        <h1 class="text-3xl font-bold text-gray-800 mb-3">
+          🔄 Hosted UI からの認証コールバック処理
+        </h1>
+        <p class="text-gray-600 text-lg leading-relaxed">
+          Hosted UI からの認証コールバックを処理しています...
+        </p>
+      </div>
+
+      <!-- 処理状態表示 -->
+      <div
+        id="processingSection"
+        class="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl shadow-lg p-8 border-l-4 border-blue-500"
+      >
+        <div class="flex items-center justify-center gap-4">
+          <div
+            class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"
+          ></div>
+          <span class="text-lg font-semibold text-gray-800">
+            認証コードを処理中...
+          </span>
+        </div>
+      </div>
+
+      <!-- エラー表示セクション -->
+      <div id="errorResultSection" class="hidden"></div>
+    </div>
+
+    <script type="module">
+      import {
+        SESSION_KEYS,
+        getSession,
+        setSession,
+      } from "./scripts/session-manager.js";
+
+      // URLパラメータを取得
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get("code");
+      const error = urlParams.get("error");
+      const errorDescription = urlParams.get("error_description");
+
+      // エラーハンドリング
+      if (error) {
+        showError(error, errorDescription);
+      } else if (code) {
+        // 認証コードを使用してトークンを取得
+        exchangeCodeForTokens(code);
+      } else {
+        showError(
+          "invalid_request",
+          "コールバックのパラメータが不足しています"
+        );
+      }
+
+      async function exchangeCodeForTokens(code) {
+        try {
+          const config = getSession(SESSION_KEYS.CONFIG);
+          const hostedUIConfig = getSession(SESSION_KEYS.HOSTED_UI_CONFIG);
+
+          if (!config || !hostedUIConfig) {
+            throw new Error("設定情報が見つかりません");
+          }
+
+          // リダイレクトURIを再構成
+          const currentOrigin = window.location.origin;
+          const basePath = window.location.pathname.includes("/cognito-demo/")
+            ? "/cognito-demo"
+            : "";
+          const redirectUri = `${currentOrigin}${basePath}/callback.html`;
+
+          // トークンエンドポイントにリクエスト
+          const tokenEndpoint = `${hostedUIConfig.domain}/oauth2/token`;
+          const response = await fetch(tokenEndpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+              grant_type: "authorization_code",
+              client_id: config.clientId,
+              code: code,
+              redirect_uri: redirectUri,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(
+              `トークン取得失敗: ${errorData.error} - ${errorData.error_description}`
+            );
+          }
+
+          const tokenData = await response.json();
+
+          // セッションに認証情報保存
+          const authData = {
+            AccessToken: tokenData.access_token,
+            ExpiresIn: tokenData.expires_in,
+            IdToken: tokenData.id_token,
+            RefreshToken: tokenData.refresh_token,
+            TokenType: tokenData.token_type,
+          };
+          setSession(SESSION_KEYS.AUTH_DATA, authData);
+
+          alert(
+            "認証に成功しました！\n認証後の情報確認を行うために auth-and-token-verify.html 画面に遷移します"
+          );
+          location.href = "./auth-and-token-verify";
+        } catch (error) {
+          console.error("Token exchange error:", error);
+          showError("token_exchange_failed", error.message);
+        }
+      }
+
+      function showError(error, description) {
+        const processingSection = document.getElementById("processingSection");
+        const errorResultSection =
+          document.getElementById("errorResultSection");
+
+        processingSection.classList.add("hidden");
+        errorResultSection.classList.remove("hidden");
+
+        errorResultSection.innerHTML = `
+          <div class="bg-gradient-to-r from-slate-50 to-red-50 rounded-xl shadow-lg p-8 border-l-4 border-red-500">
+            <div class="bg-gradient-to-r from-red-100 to-pink-100 text-red-800 p-4 rounded-lg border-l-4 border-red-400 font-semibold">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-red-500">❌</span>
+                <span>HostedUI認証に失敗しました</span>
+              </div>
+              <div class="text-sm text-red-700">
+                <strong>エラー:</strong> ${error}<br>
+                <strong>詳細:</strong> ${
+                  description || "エラーの詳細は不明です"
+                }
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    </script>
+  </body>
+</html>
