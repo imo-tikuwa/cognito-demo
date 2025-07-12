@@ -133,9 +133,12 @@
         CognitoIdentityProviderClient,
         InitiateAuthCommand,
       } from "@aws-sdk/client-cognito-identity-provider";
-      import { setCurrentUser } from "./scripts/cognito-config.js";
       import { updateIdTokenDisplay } from "./scripts/id-token-display.js";
-      import { SESSION_KEYS, getSession } from "./scripts/session-manager.js";
+      import {
+        SESSION_KEYS,
+        getSession,
+        setSession,
+      } from "./scripts/session-manager.js";
 
       // 初期チェック: Cognito 設定 または 認証結果情報 が無い場合は認証ページへリダイレクト
       const savedConfig = getSession(SESSION_KEYS.CONFIG);
@@ -182,7 +185,7 @@
               region: savedConfig.region,
             });
             const response = await cognitoClient.send(command);
-            setCurrentUser({
+            setSession(SESSION_KEYS.AUTH_DATA, {
               ...response.AuthenticationResult,
               RefreshToken: savedAuthData.RefreshToken,
             });

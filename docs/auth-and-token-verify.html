@@ -185,20 +185,20 @@
 
     <script type="module">
       import {
+        CognitoIdentityProviderClient,
         InitiateAuthCommand,
         GlobalSignOutCommand,
       } from "@aws-sdk/client-cognito-identity-provider";
       import {
-        getCognitoClient,
-        getCurrentUser,
-        setCurrentUser,
-        getConfig,
-        toggleConfig,
-        validateConfig,
-        restoreSession,
+        setupCognitoConfig,
         showLoggedInState,
-        clearSession,
       } from "./scripts/cognito-config.js";
+      import {
+        SESSION_KEYS,
+        getSession,
+        setSession,
+        removeSession,
+      } from "./scripts/session-manager.js";
 
       fetch("components/id-token-display.html")
         .then((res) => res.text())
@@ -210,14 +210,8 @@
         .then((res) => res.text())
         .then((html) => {
           document.getElementById("cognitoConfig").innerHTML = html;
-          document
-            .getElementById("toggleConfig")
-            .addEventListener("click", toggleConfig);
-          document
-            .getElementById("validateConfig")
-            .addEventListener("click", validateConfig);
 
-          restoreSession();
+          setupCognitoConfig();
         });
 
       window.signIn = async () => {
@@ -237,16 +231,18 @@
         }
 
         try {
-          const config = getConfig();
+          const config = getSession(SESSION_KEYS.CONFIG);
           const command = new InitiateAuthCommand({
             AuthFlow: "USER_PASSWORD_AUTH",
             ClientId: config.clientId,
             AuthParameters: { USERNAME: email, PASSWORD: password },
           });
 
-          const cognitoClient = getCognitoClient();
+          const cognitoClient = new CognitoIdentityProviderClient({
+            region: config.region,
+          });
           const response = await cognitoClient.send(command);
-          setCurrentUser(response.AuthenticationResult);
+          setSession(SESSION_KEYS.AUTH_DATA, response.AuthenticationResult);
 
           showLoggedInState(false);
           alertDiv.classList.add("hidden");
@@ -264,8 +260,12 @@
       };
 
       window.signOut = async () => {
-        const currentUser = getCurrentUser();
-        const cognitoClient = getCognitoClient();
+        const currentUser = getSession(SESSION_KEYS.AUTH_DATA);
+        const config = getSession(SESSION_KEYS.CONFIG);
+
+        const cognitoClient = new CognitoIdentityProviderClient({
+          region: config.region,
+        });
         if (currentUser && cognitoClient) {
           try {
             const command = new GlobalSignOutCommand({
@@ -279,7 +279,7 @@
         }
 
         // セッションをクリア
-        clearSession();
+        removeSession(SESSION_KEYS.AUTH_DATA);
 
         document.getElementById("loggedInSection").classList.add("hidden");
         document.getElementById("loginSection").classList.remove("hidden");
