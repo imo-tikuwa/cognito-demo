@@ -109,6 +109,8 @@ export function generateAuthURL(config, hostedUIConfig) {
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("redirect_uri", redirectUri);
   authUrl.searchParams.set("scope", "openid email profile");
+  // ↓ マネージドログイン（Hosted UI ではない現在利用を推奨される方）で表示するUIの言語を切り替えるオプションを追加
+  authUrl.searchParams.set("lang", "ja");
 
   return authUrl.toString();
 }
