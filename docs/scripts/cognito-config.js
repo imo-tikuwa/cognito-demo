@@ -113,7 +113,9 @@ function updateConfigStatus(isValid) {
     if (!currentUser) {
       loginSection?.classList.remove("hidden");
     }
-    signInBtn.disabled = false;
+    if (signInBtn) {
+      signInBtn.disabled = false;
+    }
   } else {
     statusDiv.innerHTML = `
             <div class="flex items-center gap-2">
@@ -124,6 +126,8 @@ function updateConfigStatus(isValid) {
     statusDiv.className =
       "mt-6 text-red-800 bg-gradient-to-r from-red-50 to-pink-50 p-4 rounded-lg border-l-4 border-red-400 font-medium";
     loginSection?.classList.add("hidden");
-    signInBtn.disabled = true;
+    if (signInBtn) {
+      signInBtn.disabled = true;
+    }
   }
 }

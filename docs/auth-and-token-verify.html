@@ -263,29 +263,33 @@
         const currentUser = getSession(SESSION_KEYS.AUTH_DATA);
         const config = getSession(SESSION_KEYS.CONFIG);
 
+        if (!currentUser) {
+          alert("認証情報が存在しません");
+          return;
+        }
+
         const cognitoClient = new CognitoIdentityProviderClient({
           region: config.region,
         });
-        if (currentUser && cognitoClient) {
-          try {
-            const command = new GlobalSignOutCommand({
-              AccessToken: currentUser.AccessToken,
-            });
-            const response = await cognitoClient.send(command);
-            console.log("signed out:", response);
-          } catch (e) {
-            console.error("sign out error:", e);
-          }
+        try {
+          const command = new GlobalSignOutCommand({
+            AccessToken: currentUser.AccessToken,
+          });
+          const response = await cognitoClient.send(command);
+          console.log("signed out:", response);
+
+          // セッションをクリア
+          removeSession(SESSION_KEYS.AUTH_DATA);
+
+          document.getElementById("loggedInSection").classList.add("hidden");
+          document.getElementById("loginSection").classList.remove("hidden");
+          document.getElementById("sessionRestored").classList.add("hidden");
+
+          console.log("ログアウト完了 - セッションをクリアしました");
+        } catch (e) {
+          console.error("sign out error:", e);
+          alert("サインアウトに失敗");
         }
-
-        // セッションをクリア
-        removeSession(SESSION_KEYS.AUTH_DATA);
-
-        document.getElementById("loggedInSection").classList.add("hidden");
-        document.getElementById("loginSection").classList.remove("hidden");
-        document.getElementById("sessionRestored").classList.add("hidden");
-
-        console.log("ログアウト完了 - セッションをクリアしました");
       };
     </script>
   </body>

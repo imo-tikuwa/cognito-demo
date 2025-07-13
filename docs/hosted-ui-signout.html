@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AWS Cognito認証デモ - Hosted UI 検証</title>
+    <title>AWS Cognito認証デモ - Hosted UI サインアウト検証</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script type="importmap">
       {
@@ -19,11 +19,10 @@
     <div class="max-w-4xl mx-auto space-y-8">
       <div class="bg-white rounded-xl shadow-lg p-8 text-center">
         <h1 class="text-3xl font-bold text-gray-800 mb-3">
-          🔐 AWS Cognito Hosted UI 検証デモ
+          🔐 AWS Cognito Hosted UI サインアウト検証
         </h1>
         <p class="text-gray-600 text-lg leading-relaxed">
-          AWS Cognito の Hosted UI （および
-          マネージドログイン）を使用した認証を検証します。<br />
+          Hosted UI を使用した認証セッションのサインアウト動作を検証します。<br />
           <span class="text-blue-600">
             ※ ユーザープール設定、Hosted UI
             設定はセッションストレージで管理します
@@ -37,66 +36,57 @@
       <!-- Hosted UI 設定 -->
       <div id="hostedUIConfig"></div>
 
-      <!-- ログインセクション -->
+      <!-- サインアウトセクション -->
       <div
-        id="authExecuteSection"
-        class="hidden bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl shadow-lg p-8 border-l-4 border-indigo-500 transition-all duration-300"
+        id="signoutSection"
+        class="hidden bg-gradient-to-r from-slate-50 to-rose-50 rounded-xl shadow-lg p-8 border-l-4 border-rose-500"
       >
         <h2
           class="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2"
         >
-          🔐 Hosted UI 認証
+          🚪 Hosted UI サインアウト
         </h2>
         <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-          <div class="space-y-4">
-            <button
-              onclick="redirectToHostedUI()"
-              id="signInBtn"
-              class="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white py-3 px-6 rounded-lg font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200"
-            >
-              🌐 ログイン画面に遷移
-            </button>
-          </div>
+          <button
+            onclick="logoutFromHostedUI()"
+            class="w-full bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white py-3 px-6 rounded-lg font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200"
+          >
+            🌐 Hosted UI を使用して認証したときのサインアウト
+          </button>
         </div>
       </div>
 
       <!-- 検証ポイント -->
       <div
-        class="bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl shadow-lg p-8 border-l-4 border-blue-500"
+        class="bg-gradient-to-r from-slate-50 to-rose-50 rounded-xl shadow-lg p-8 border-l-4 border-rose-500"
       >
         <h3
           class="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2"
         >
-          📋 Hosted UI 検証ポイント
+          📋 Hosted UI サインアウト検証ポイント
         </h3>
         <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
           <ul class="space-y-4 text-gray-700">
             <li class="flex items-start gap-3">
-              <span
-                class="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-2"
-              ></span>
+              <span class="w-2 h-2 bg-rose-500 rounded-full mt-2"></span>
               <div>
-                <strong class="text-blue-600">OAuth2/OpenID Connect</strong> -
-                標準的な認証フローに準拠
+                Hosted UI
+                経由のサインアウトについて専用のログアウトエンドポイント
+                `/logout` を使用して行うことの確認
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-2"
-              ></span>
+              <span class="w-2 h-2 bg-rose-500 rounded-full mt-2"></span>
               <div>
-                <strong class="text-blue-600">Authorization Code Flow</strong>
-                - 認証後のコールバック先（callback.html）で code
-                を元にしたトークンとの交換を検証
+                Hosted UI 上のオリジンに紐づく Cookie について有効期限を
+                1970-01-01 に更新することによる失効の動作を確認
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-2"
-              ></span>
+              <span class="w-2 h-2 bg-rose-500 rounded-full mt-2"></span>
               <div>
-                <strong class="text-blue-600">マネージドUI</strong> -
-                AWSが提供するカスタマイズ可能なログイン画面の検証を実施
+                サインアウト後の戻り先設定として `logout_uri`
+                に設定されたページに 302 リダイレクトすることを確認
               </div>
             </li>
           </ul>
@@ -105,11 +95,15 @@
     </div>
 
     <script type="module">
-      import { SESSION_KEYS, getSession } from "./scripts/session-manager.js";
+      import {
+        SESSION_KEYS,
+        getSession,
+        removeSession,
+      } from "./scripts/session-manager.js";
       import { setupCognitoConfig } from "./scripts/cognito-config.js";
       import {
         setupHostedUIConfig,
-        generateAuthURL,
+        generateLogoutURL,
       } from "./scripts/hosted-ui-config.js";
 
       fetch("components/cognito-config.html")
@@ -134,8 +128,7 @@
       setInterval(() => {
         const cognitoConfig = getSession(SESSION_KEYS.CONFIG);
         const hostedUIConfig = getSession(SESSION_KEYS.HOSTED_UI_CONFIG);
-        const authExecuteSection =
-          document.getElementById("authExecuteSection");
+        const signoutSection = document.getElementById("signoutSection");
 
         // 値の変更があったときのみ処理
         if (
@@ -147,14 +140,14 @@
 
           const bothPresent = cognitoConfig && hostedUIConfig;
 
-          if (authExecuteSection) {
-            authExecuteSection.classList.toggle("hidden", !bothPresent);
+          if (signoutSection) {
+            signoutSection.classList.toggle("hidden", !bothPresent);
           }
         }
       }, 500);
 
-      // Hosted UI に遷移
-      window.redirectToHostedUI = function () {
+      // Hosted UI サインアウトに遷移
+      window.logoutFromHostedUI = function () {
         const config = getSession(SESSION_KEYS.CONFIG);
         const hostedUIConfig = getSession(SESSION_KEYS.HOSTED_UI_CONFIG);
 
@@ -163,11 +156,16 @@
           return;
         }
 
-        const authUrl = generateAuthURL(config, hostedUIConfig);
-        console.log("Hosted UI へリダイレクト:", authUrl);
+        // サインアウト URL についてトップページを指定しているため、「Hosted UI でサインアウト ⇒ 当検証ページ側でセッションストレージ削除」のような手順は作れない。。
+        // コールバック URL と同じ要領でサインアウト専用の処理を行うリダイレクトページを作るのが正解だったかも？
+        const logoutUrl = generateLogoutURL(config, hostedUIConfig);
+        console.log("Hosted UI サインアウトに遷移:", logoutUrl);
 
-        // 同一タブでリダイレクト
-        window.location.href = authUrl;
+        // ※本来はここでやるべきではないかもしれない処理
+        // サインアウト後のURLがトップページなのでセッションストレージで管理する認証情報はここで先に破棄する
+        removeSession(SESSION_KEYS.AUTH_DATA);
+
+        window.location.href = logoutUrl;
       };
     </script>
   </body>

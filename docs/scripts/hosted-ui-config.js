@@ -101,6 +101,9 @@ export function generateAuthURL(config, hostedUIConfig) {
     : "";
   const redirectUri = `${currentOrigin}${basePath}/callback.html`;
 
+  // マネージドログインのログインエンドポイントは /login だが、以下の2ドキュメントを確認した限りでは /oauth2/authorize から開始するのがベストプラクティスとのこと
+  // 参考：https://docs.aws.amazon.com/ja_jp/cognito/latest/developerguide/authorization-endpoint.html
+  // 参考：https://docs.aws.amazon.com/ja_jp/cognito/latest/developerguide/login-endpoint.html
   const authUrl = new URL(`${hostedUIConfig.domain}/oauth2/authorize`);
   authUrl.searchParams.set("client_id", config.clientId);
   authUrl.searchParams.set("response_type", "code");
@@ -108,4 +111,21 @@ export function generateAuthURL(config, hostedUIConfig) {
   authUrl.searchParams.set("scope", "openid email profile");
 
   return authUrl.toString();
+}
+
+// HostedUIのサインアウトURLを生成
+export function generateLogoutURL(config, hostedUIConfig) {
+  const currentOrigin = window.location.origin;
+  const basePath = window.location.pathname.includes("/cognito-demo/")
+    ? "/cognito-demo"
+    : "";
+  const logoutUri = `${currentOrigin}${basePath}/`;
+
+  // ログアウトエンドポイントの方はドキュメントを読む限り /logout で良いみたい
+  // 参考：https://docs.aws.amazon.com/ja_jp/cognito/latest/developerguide/logout-endpoint.html
+  const signOutUrl = new URL(`${hostedUIConfig.domain}/logout`);
+  signOutUrl.searchParams.set("client_id", config.clientId);
+  signOutUrl.searchParams.set("logout_uri", logoutUri);
+
+  return signOutUrl.toString();
 }
