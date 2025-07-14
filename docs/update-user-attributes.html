@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AWS Cognito認証デモ - 認証中のユーザーの属性更新</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "@aws-sdk/client-cognito-identity-provider": "https://esm.sh/@aws-sdk/client-cognito-identity-provider@3.835.0?bundle"
+        }
+      }
+    </script>
+  </head>
+  <body
+    class="bg-gradient-to-br from-slate-50 to-slate-200 min-h-screen py-8 px-4"
+  >
+    <div class="max-w-4xl mx-auto space-y-8">
+      <div class="bg-white rounded-xl shadow-lg p-8 text-center">
+        <h1 class="text-3xl font-bold text-gray-800 mb-3">
+          ✏️ 認証中のユーザーの属性更新
+        </h1>
+        <p class="text-gray-600 text-lg leading-relaxed">
+          ユーザープールで標準かつ確認不要で管理可能な属性について
+          Read/Update/Delete の検証を行います。
+        </p>
+      </div>
+
+      <!-- 現在の属性表示 -->
+      <div
+        class="bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl shadow-lg p-8 border-l-4 border-blue-500"
+      >
+        <h3
+          class="text-xl font-semibold text-gray-800 flex items-center gap-2 mb-6"
+        >
+          📋 現在の属性
+        </h3>
+
+        <div id="currentAttributesContainer">
+          <div
+            id="currentAttributesList"
+            class="bg-white rounded-lg p-4 shadow-sm border border-gray-200"
+          >
+            <div class="flex items-center justify-center py-8">
+              <div
+                class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"
+              ></div>
+              <span class="ml-2 text-gray-600">属性を読み込み中...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 属性更新フォーム -->
+      <div
+        class="bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl shadow-lg p-8 border-l-4 border-green-500"
+      >
+        <div class="flex items-center justify-between mb-6">
+          <h3
+            class="text-xl font-semibold text-gray-800 flex items-center gap-2"
+          >
+            ✏️ 属性更新
+          </h3>
+          <button
+            id="addAttributeField"
+            class="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-2 px-4 rounded-lg font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center gap-2"
+          >
+            <span class="text-lg">+</span>
+            項目追加
+          </button>
+        </div>
+
+        <div id="attributeFieldsContainer" class="space-y-4"></div>
+
+        <div class="mt-6 text-center">
+          <button
+            id="updateAttributes"
+            class="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white py-3 px-6 rounded-lg font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:shadow-md"
+          >
+            <span id="updateButtonText">属性を更新</span>
+            <div
+              id="updateButtonSpinner"
+              class="!hidden inline-flex items-center"
+            >
+              <div
+                class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"
+              ></div>
+              更新中...
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- 検証ポイント -->
+      <div
+        class="bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl shadow-lg p-8 border-l-4 border-yellow-500"
+      >
+        <h3
+          class="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2"
+        >
+          📋 検証ポイント
+        </h3>
+        <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+          <ul class="space-y-4 text-gray-700">
+            <li class="flex items-start gap-3">
+              <span
+                class="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-2"
+              ></span>
+              <div>
+                <strong class="text-blue-600">GetUserCommand</strong>
+                でアクセストークンを使用して現在の属性を取得します
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <span
+                class="flex-shrink-0 w-2 h-2 bg-green-500 rounded-full mt-2"
+              ></span>
+              <div>
+                <strong class="text-green-600"
+                  >UpdateUserAttributesCommand</strong
+                >
+                で確認不要な標準属性のみを更新します
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <span
+                class="flex-shrink-0 w-2 h-2 bg-red-500 rounded-full mt-2"
+              ></span>
+              <div>
+                一部の属性は
+                <strong class="text-red-600">
+                  DeleteUserAttributesCommand
+                </strong>
+                で削除できます
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <span
+                class="flex-shrink-0 w-2 h-2 bg-yellow-500 rounded-full mt-2"
+              ></span>
+              <div>email、phone_number等の確認が必要な属性は除外しています</div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import {
+        CognitoIdentityProviderClient,
+        GetUserCommand,
+        UpdateUserAttributesCommand,
+        DeleteUserAttributesCommand,
+      } from "@aws-sdk/client-cognito-identity-provider";
+      import { SESSION_KEYS, getSession } from "./scripts/session-manager.js";
+
+      // 確認不要な標準属性のリスト
+      const EDITABLE_ATTRIBUTES = [
+        { name: "given_name", label: "名前" },
+        { name: "family_name", label: "姓" },
+        { name: "middle_name", label: "ミドルネーム" },
+        { name: "nickname", label: "ニックネーム" },
+        { name: "preferred_username", label: "希望ユーザー名" },
+        { name: "profile", label: "プロフィール" },
+        { name: "picture", label: "プロフィール画像URL" },
+        { name: "website", label: "ウェブサイト" },
+        { name: "gender", label: "性別" },
+        { name: "birthdate", label: "生年月日" },
+        { name: "zoneinfo", label: "タイムゾーン" },
+        { name: "locale", label: "ロケール" },
+        { name: "address", label: "住所" },
+        { name: "updated_at", label: "更新日時" },
+        { name: "name", label: "フルネーム" },
+      ];
+
+      // 削除不可能な属性（システムが自動で管理する属性 + 認証で使用する属性）
+      const NON_EDITABLE_ATTRIBUTES = [
+        "sub",
+        "email",
+        "email_verified",
+        "phone_number",
+        "phone_number_verified",
+        "updated_at",
+      ];
+
+      // 初期チェック
+      const savedConfig = getSession(SESSION_KEYS.CONFIG);
+      const savedAuthData = getSession(SESSION_KEYS.AUTH_DATA);
+
+      if (!savedConfig || !savedAuthData || !savedAuthData.AccessToken) {
+        alert(
+          "アクセストークンまたはCognito設定が存在しません。認証画面に遷移します。"
+        );
+        location.href = "./auth-and-token-verify";
+      }
+
+      const cognitoClient = new CognitoIdentityProviderClient({
+        region: savedConfig.region,
+      });
+
+      let fieldCounter = 0;
+      let currentAttributes = {};
+      let isUpdating = false;
+
+      // 更新ボタンの状態を変更
+      function setUpdateButtonState(updating) {
+        isUpdating = updating;
+        const button = document.getElementById("updateAttributes");
+        const buttonText = document.getElementById("updateButtonText");
+        const spinner = document.getElementById("updateButtonSpinner");
+
+        if (updating) {
+          button.disabled = true;
+          buttonText.classList.add("hidden");
+          spinner.classList.remove("!hidden");
+        } else {
+          button.disabled = false;
+          buttonText.classList.remove("hidden");
+          spinner.classList.add("!hidden");
+        }
+      }
+
+      // 属性を削除
+      window.deleteAttribute = async function (attributeName) {
+        const attributeLabel =
+          EDITABLE_ATTRIBUTES.find((attr) => attr.name === attributeName)
+            ?.label || attributeName;
+
+        if (
+          !window.confirm(
+            `${attributeLabel} (${attributeName}) を削除しますか？`
+          )
+        ) {
+          return;
+        }
+
+        try {
+          const command = new DeleteUserAttributesCommand({
+            AccessToken: savedAuthData.AccessToken,
+            UserAttributeNames: [attributeName],
+          });
+
+          await cognitoClient.send(command);
+          alert(`${attributeLabel} (${attributeName}) を削除しました`);
+
+          // 現在の属性を再取得
+          await loadCurrentAttributes();
+        } catch (e) {
+          alert(`属性削除失敗: ${e.message}`);
+        }
+      };
+
+      // 現在の属性を取得
+      async function loadCurrentAttributes() {
+        try {
+          const command = new GetUserCommand({
+            AccessToken: savedAuthData.AccessToken,
+          });
+
+          const response = await cognitoClient.send(command);
+          currentAttributes = {};
+
+          // 属性を整理
+          response.UserAttributes.forEach((attr) => {
+            currentAttributes[attr.Name] = attr.Value;
+          });
+
+          // 表示を更新
+          displayCurrentAttributes();
+        } catch (e) {
+          alert(`属性取得失敗: ${e.message}`);
+        }
+      }
+
+      // 現在の属性を表示
+      function displayCurrentAttributes() {
+        const container = document.getElementById("currentAttributesList");
+
+        let html = "<div class='grid grid-cols-1 md:grid-cols-2 gap-4'>";
+
+        Object.entries(currentAttributes).forEach(([key, value]) => {
+          const canDelete = !NON_EDITABLE_ATTRIBUTES.includes(key);
+          const attribute = EDITABLE_ATTRIBUTES.find(
+            (attr) => attr.name === key
+          );
+          const attributeLabel = attribute
+            ? `${attribute.label} (${attribute.name})`
+            : key;
+
+          html += `
+            <div class="bg-gray-50 p-3 rounded-lg flex items-start justify-between">
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium text-gray-600">${attributeLabel}</div>
+                <div class="text-gray-800 break-all">${value}</div>
+              </div>
+              ${
+                canDelete
+                  ? `
+                <button
+                  onclick="deleteAttribute('${key}')"
+                  class="flex-shrink-0 ml-2 bg-red-500 hover:bg-red-600 text-white w-6 h-6 rounded-full font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center justify-center text-sm"
+                  title="削除"
+                >
+                  −
+                </button>
+              `
+                  : `
+                <div class="flex-shrink-0 ml-2 w-6 h-6 flex items-center justify-center">
+                  <span class="text-gray-400 text-xs" title="削除不可">🔒</span>
+                </div>
+              `
+              }
+            </div>
+          `;
+        });
+
+        html += "</div>";
+        container.innerHTML = html;
+      }
+
+      // 属性フィールドを追加
+      function addAttributeField() {
+        fieldCounter++;
+        const container = document.getElementById("attributeFieldsContainer");
+
+        const fieldDiv = document.createElement("div");
+        fieldDiv.className =
+          "bg-white rounded-lg p-4 shadow-sm border border-gray-200";
+        fieldDiv.id = `attributeField_${fieldCounter}`;
+
+        fieldDiv.innerHTML = `
+          <div class="flex items-start gap-4">
+            <div class="flex-1">
+              <label class="block text-sm font-medium text-gray-700 mb-2">属性名</label>
+              <select class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" id="attrName_${fieldCounter}">
+                <option value="">選択してください</option>
+                ${EDITABLE_ATTRIBUTES.map(
+                  (attr) =>
+                    `<option value="${attr.name}">${attr.label} (${attr.name})</option>`
+                ).join("")}
+              </select>
+            </div>
+            <div class="flex-1">
+              <label class="block text-sm font-medium text-gray-700 mb-2">値</label>
+              <input type="text" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" id="attrValue_${fieldCounter}" placeholder="属性値を入力">
+            </div>
+            <div class="flex-shrink-0">
+              <label class="block text-sm font-medium text-gray-700 mb-2 opacity-0">削除</label>
+              <button type="button" class="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200 h-10 w-10 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none" onclick="removeAttributeField(${fieldCounter})" id="removeBtn_${fieldCounter}">
+                <span class="text-lg">−</span>
+              </button>
+            </div>
+          </div>
+        `;
+
+        container.appendChild(fieldDiv);
+
+        // 属性選択時に現在の値を自動入力
+        const selectElement = document.getElementById(
+          `attrName_${fieldCounter}`
+        );
+        const inputElement = document.getElementById(
+          `attrValue_${fieldCounter}`
+        );
+
+        selectElement.addEventListener("change", (e) => {
+          const selectedAttr = e.target.value;
+          if (selectedAttr && currentAttributes[selectedAttr]) {
+            inputElement.value = currentAttributes[selectedAttr];
+          }
+        });
+
+        // 削除ボタンの状態を更新
+        updateRemoveButtonStates();
+      }
+
+      // 削除ボタンの状態を更新（1行の場合は削除不可）
+      function updateRemoveButtonStates() {
+        const container = document.getElementById("attributeFieldsContainer");
+        const fields = container.querySelectorAll('[id^="attributeField_"]');
+
+        fields.forEach((field) => {
+          const id = field.id.split("_")[1];
+          const removeBtn = document.getElementById(`removeBtn_${id}`);
+
+          if (removeBtn) {
+            if (fields.length === 1) {
+              removeBtn.disabled = true;
+              removeBtn.title = "最低1つの入力欄が必要です";
+            } else {
+              removeBtn.disabled = false;
+              removeBtn.title = "この行を削除";
+            }
+          }
+        });
+      }
+
+      // 属性フィールドを削除
+      window.removeAttributeField = function (id) {
+        const fieldDiv = document.getElementById(`attributeField_${id}`);
+        if (fieldDiv) {
+          fieldDiv.remove();
+          // 削除後に残りの削除ボタンの状態を更新
+          updateRemoveButtonStates();
+        }
+      };
+
+      // 属性を更新
+      async function updateAttributes() {
+        if (isUpdating) return;
+
+        try {
+          const container = document.getElementById("attributeFieldsContainer");
+          const fields = container.querySelectorAll('[id^="attributeField_"]');
+
+          // 入力値のチェックと更新用データの組み立て
+          const userAttributes = [];
+          const ids = [];
+          for (const field of fields) {
+            const id = field.id.split("_")[1];
+            const nameElement = document.getElementById(`attrName_${id}`);
+            const valueElement = document.getElementById(`attrValue_${id}`);
+
+            const hasDuplicates = userAttributes.find(
+              (attr) => attr.Name === nameElement.value
+            );
+            if (hasDuplicates) {
+              alert("重複する属性があります。確認してください。");
+              return;
+            } else if (valueElement.value === "") {
+              alert("値が空白の属性があります。確認してください。");
+              return;
+            }
+
+            ids.push(id);
+            userAttributes.push({
+              Name: nameElement.value,
+              Value: valueElement.value,
+            });
+          }
+
+          if (userAttributes.length === 0) {
+            alert("更新する対象の属性が見つかりませんでした");
+            return;
+          }
+
+          setUpdateButtonState(true);
+
+          const command = new UpdateUserAttributesCommand({
+            AccessToken: savedAuthData.AccessToken,
+            UserAttributes: userAttributes,
+          });
+
+          await cognitoClient.send(command);
+          alert(`${userAttributes.length}個の属性を更新しました`);
+
+          // 現在の属性更新のフォームを全削除＆1行追加
+          for (const id of ids) {
+            removeAttributeField(id);
+          }
+          addAttributeField();
+
+          // 現在の属性を再取得
+          await loadCurrentAttributes();
+        } catch (e) {
+          alert(`属性更新失敗: ${e.message}`);
+        } finally {
+          setUpdateButtonState(false);
+        }
+      }
+
+      // イベントリスナー
+      document
+        .getElementById("addAttributeField")
+        .addEventListener("click", addAttributeField);
+      document
+        .getElementById("updateAttributes")
+        .addEventListener("click", updateAttributes);
+
+      // 初期状態で属性を読み込み、1つのフィールドを追加
+      loadCurrentAttributes();
+      addAttributeField();
+    </script>
+  </body>
+</html>
