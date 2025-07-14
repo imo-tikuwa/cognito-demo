@@ -108,7 +108,11 @@ export function generateAuthURL(config, hostedUIConfig) {
   authUrl.searchParams.set("client_id", config.clientId);
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("redirect_uri", redirectUri);
-  authUrl.searchParams.set("scope", "openid email profile");
+  // ↓ "aws.cognito.signin.user.admin" スコープはマネージドログイン経由で認証したユーザーが自身の属性を扱うのに必要（アプリ内からの認証の場合はこのスコープの設定をせずに動作する模様）
+  authUrl.searchParams.set(
+    "scope",
+    "openid email profile aws.cognito.signin.user.admin"
+  );
   // ↓ マネージドログイン（Hosted UI ではない現在利用を推奨される方）で表示するUIの言語を切り替えるオプションを追加
   authUrl.searchParams.set("lang", "ja");
 
