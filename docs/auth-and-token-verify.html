@@ -188,6 +188,7 @@
         CognitoIdentityProviderClient,
         InitiateAuthCommand,
         GlobalSignOutCommand,
+        RespondToAuthChallengeCommand,
       } from "@aws-sdk/client-cognito-identity-provider";
       import {
         setupCognitoConfig,
@@ -241,7 +242,27 @@
           const cognitoClient = new CognitoIdentityProviderClient({
             region: config.region,
           });
-          const response = await cognitoClient.send(command);
+          let response = await cognitoClient.send(command);
+
+          // MFA（Authenticator アプリを使用した TOTP 入力）が必要な場合の処理
+          // レスポンスに AuthenticationResult が含まれず、ChallengeName がある場合追加のチャレンジが必要
+          // 今回の検証 MFA について TOTP（Time-based One-Time Password） のみ有効としているため ChallengeName には一律 "SOFTWARE_TOKEN_MFA" が入っている
+          // 複数の MFA に対応する場合は ChallengeName の値を元に switch とかで分岐できると良いコードになりそう
+          if (response.ChallengeName === "SOFTWARE_TOKEN_MFA") {
+            const totpCode = prompt("認証コードを入力してください");
+            const challengeCommand = new RespondToAuthChallengeCommand({
+              ChallengeName: "SOFTWARE_TOKEN_MFA",
+              ClientId: config.clientId,
+              Session: response.Session,
+              ChallengeResponses: {
+                USERNAME: email,
+                SOFTWARE_TOKEN_MFA_CODE: totpCode,
+              },
+            });
+            response = await cognitoClient.send(challengeCommand);
+          }
+
+          // メールアドレス&パスワード or メールアドレス&パスワード ⇒ MFA(TOTP) の認証結果として得られた認証情報をセッションストレージに保存
           setSession(SESSION_KEYS.AUTH_DATA, response.AuthenticationResult);
 
           showLoggedInState(false);
