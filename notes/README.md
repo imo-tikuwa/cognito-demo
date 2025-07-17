@@ -2,6 +2,8 @@
 
 AWS Cognito の各種検証について、セットアップ手順や補足メモを記載しています。
 
+動作確認でマネジメントコンソールを使用しますがリソースの操作は全て AWS CLI で実施しています。
+
 ## ページ一覧
 
 **`🔔上にあるものほど古いです。下にあるものは上にある記事の中で行った作業を前提としています。`**
@@ -20,3 +22,4 @@ AWS Cognito の各種検証について、セットアップ手順や補足メ�
 | [setup_managed-login.md](setup_managed-login.md) | Hosted UI について2025年現在利用を推奨されているマネージドログインに移行する作業を実施<br />マネージドログイン用のスタイルを作成<br />スタイルについて aws-cli 上で更新など実施 |
 | [setup_update-user-attributes.md](setup_update-user-attributes.md) | ユーザープールで標準で管理されている各種属性について Read / Update / Delete の検証 |
 | [setup_multi-factor-authentication.md](setup_multi-factor-authentication.md) | ユーザープール、ユーザー、アプリクライアントを更新<br />Authenticator アプリを使用した MFA 付き認証の検証 |
+| [setup_lambda-trigger.md](setup_lambda-trigger.md) | ユーザープールの Lambda トリガー、Lambda 関数、DynamoDB テーブルなどを作成＆設定<br />検証内容として認証後のイベントにフックする形で Lambda 関数を呼び出し、ログインしたユーザー情報を DynamoDB に記録するような動作を確認<br />トリガー先の一連のリソースは AWS SAM を使用して開発（同プロジェクト内の cognito-demo-triggers） |
