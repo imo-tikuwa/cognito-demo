@@ -42,8 +42,12 @@ export function setupCognitoConfig() {
         console.log("セッションから認証状態を復元しました");
       } else {
         // トークンが期限切れの場合、セッションをクリア
-        console.log("トークンが期限切れのため、セッションをクリアします");
+        alert(
+          "ID トークンの有効期限が切れているためセッションをクリアします。\nHosted UI で認証している場合は Hosted UI 側のログアウトが必要です"
+        );
         removeSession(SESSION_KEYS.AUTH_DATA);
+
+        updateConfigStatus(savedConfig ? true : false);
       }
     }
   } catch (error) {
